@@ -18,7 +18,8 @@ func getAdminContext(ctx context.Context) (model.DataStore, context.Context) {
 	ds := persistence.New(sqlDB)
 	ctx = auth.WithAdminUser(ctx, ds)
 	u, _ := request.UserFrom(ctx)
-	if !u.IsAdmin {
+	count, _ := ds.User(ctx).CountAll()
+	if !u.IsAdmin && count > 0 {
 		log.Fatal(ctx, "There must be at least one admin user to run this command.")
 	}
 	return ds, ctx
