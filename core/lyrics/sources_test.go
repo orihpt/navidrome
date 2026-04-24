@@ -71,6 +71,7 @@ var _ = Describe("sources", func() {
 				model.Lyrics{
 					DisplayArtist: "Rick Astley",
 					DisplayTitle:  "That one song",
+					Format:        "lrc",
 					Lang:          "eng",
 					Line: []model.Line{
 						{
@@ -83,9 +84,22 @@ var _ = Describe("sources", func() {
 						},
 					},
 					Offset: gg.P(int64(-100)),
+					Raw:    "[ar:Rick Astley]\n[ti:That one song]\n[offset:-100]\n[lang:eng]\n[00:18.80]We're no strangers to love\n[00:22.801]You know the rules and so do I\n",
 					Synced: true,
 				},
 			}))
+		})
+
+		It("should return raw TTML lyrics from a file", func() {
+			mf := model.MediaFile{Path: "tests/fixtures/test.mp3"}
+			lyrics, err := fromExternalTTML(ctx, &mf, ".ttml")
+
+			Expect(err).To(BeNil())
+			Expect(lyrics).To(HaveLen(1))
+			Expect(lyrics[0].Format).To(Equal("ttml"))
+			Expect(lyrics[0].Raw).To(ContainSubstring("<tt xmlns=\"http://www.w3.org/ns/ttml\">"))
+			Expect(lyrics[0].Line).To(BeEmpty())
+			Expect(lyrics[0].Synced).To(BeTrue())
 		})
 
 		It("should return unsynchronized lyrics from a file", func() {

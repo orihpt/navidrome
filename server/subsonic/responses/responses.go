@@ -540,9 +540,11 @@ type Line struct {
 type StructuredLyric struct {
 	DisplayArtist string `xml:"displayArtist,attr,omitempty" json:"displayArtist,omitempty"`
 	DisplayTitle  string `xml:"displayTitle,attr,omitempty"  json:"displayTitle,omitempty"`
+	Format        string `xml:"format,attr,omitempty"        json:"format,omitempty"`
 	Lang          string `xml:"lang,attr"                    json:"lang"`
 	Line          []Line `xml:"line"                         json:"line"`
 	Offset        *int64 `xml:"offset,attr,omitempty"        json:"offset,omitempty"`
+	Raw           string `xml:"raw,omitempty"                json:"raw,omitempty"`
 	Synced        bool   `xml:"synced,attr"                  json:"synced"`
 }
 

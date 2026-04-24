@@ -506,9 +506,11 @@ func buildStructuredLyric(mf *model.MediaFile, lyrics model.Lyrics) responses.St
 	structured := responses.StructuredLyric{
 		DisplayArtist: lyrics.DisplayArtist,
 		DisplayTitle:  lyrics.DisplayTitle,
+		Format:        lyrics.Format,
 		Lang:          lyrics.Lang,
 		Line:          lines,
 		Offset:        lyrics.Offset,
+		Raw:           lyrics.Raw,
 		Synced:        lyrics.Synced,
 	}
 

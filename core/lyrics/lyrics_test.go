@@ -29,6 +29,7 @@ var _ = Describe("sources", func() {
 		model.Lyrics{
 			DisplayArtist: "Rick Astley",
 			DisplayTitle:  "That one song",
+			Format:        "lrc",
 			Lang:          "eng",
 			Line: []model.Line{
 				{
@@ -41,6 +42,7 @@ var _ = Describe("sources", func() {
 				},
 			},
 			Offset: gg.P(int64(-100)),
+			Raw:    "[ar:Rick Astley]\n[ti:That one song]\n[offset:-100]\n[lang:eng]\n[00:18.80]We're no strangers to love\n[00:22.801]You know the rules and so do I\n",
 			Synced: true,
 		},
 	}

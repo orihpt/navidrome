@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
@@ -45,9 +46,42 @@ func fromExternalFile(ctx context.Context, mf *model.MediaFile, suffix string) (
 		return nil, nil
 	}
 
+	if strings.EqualFold(suffix, ".lrc") {
+		lyrics.Format = "lrc"
+		lyrics.Raw = string(contents)
+	}
 	log.Trace(ctx, "retrieved lyrics from external file", "path", externalLyric)
 
 	return model.LyricList{*lyrics}, nil
+}
+
+func fromExternalTTML(ctx context.Context, mf *model.MediaFile, suffix string) (model.LyricList, error) {
+	basePath := mf.AbsolutePath()
+	ext := path.Ext(basePath)
+
+	externalLyric := basePath[0:len(basePath)-len(ext)] + suffix
+
+	contents, err := ioutils.UTF8ReadFile(externalLyric)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Trace(ctx, "no lyrics found at path", "path", externalLyric)
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	raw := strings.TrimSpace(string(contents))
+	if raw == "" {
+		log.Trace(ctx, "empty lyrics from external file", "path", externalLyric)
+		return nil, nil
+	}
+
+	log.Trace(ctx, "retrieved TTML lyrics from external file", "path", externalLyric)
+	return model.LyricList{{
+		Format: "ttml",
+		Lang:   "xxx",
+		Raw:    raw,
+		Synced: true,
+	}}, nil
 }
 
 // fromPlugin attempts to load lyrics from a plugin with the given name.

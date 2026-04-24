@@ -19,9 +19,11 @@ type Line struct {
 type Lyrics struct {
 	DisplayArtist string `structs:"displayArtist,omitempty" json:"displayArtist,omitempty"`
 	DisplayTitle  string `structs:"displayTitle,omitempty"  json:"displayTitle,omitempty"`
+	Format        string `structs:"format,omitempty"        json:"format,omitempty"`
 	Lang          string `structs:"lang"                    json:"lang"`
 	Line          []Line `structs:"line"                    json:"line"`
 	Offset        *int64 `structs:"offset,omitempty"        json:"offset,omitempty"`
+	Raw           string `structs:"raw,omitempty"           json:"raw,omitempty"`
 	Synced        bool   `structs:"synced"                  json:"synced"`
 }
 

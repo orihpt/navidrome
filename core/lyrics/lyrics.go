@@ -40,6 +40,8 @@ func (l *lyricsService) GetLyrics(ctx context.Context, mf *model.MediaFile) (mod
 		switch {
 		case strings.EqualFold(pattern, "embedded"):
 			lyricsList, err = fromEmbedded(ctx, mf)
+		case strings.EqualFold(pattern, ".ttml"), strings.EqualFold(pattern, ".ttlm"):
+			lyricsList, err = fromExternalTTML(ctx, mf, strings.ToLower(pattern))
 		case strings.HasPrefix(pattern, "."):
 			lyricsList, err = fromExternalFile(ctx, mf, strings.ToLower(pattern))
 		default:
