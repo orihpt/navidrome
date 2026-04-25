@@ -118,6 +118,7 @@ func (api *Router) routes() http.Handler {
 			h(r, "getAlbumInfo2", api.GetAlbumInfo)
 			h(r, "getArtistInfo", api.GetArtistInfo)
 			h(r, "getArtistInfo2", api.GetArtistInfo2)
+			h(r, "getArtistRichInfo", api.GetArtistRichInfo)
 			h(r, "getTopSongs", api.GetTopSongs)
 			h(r, "getSimilarSongs", api.GetSimilarSongs)
 			h(r, "getSimilarSongs2", api.GetSimilarSongs2)
@@ -192,6 +193,7 @@ func (api *Router) routes() http.Handler {
 					conf.Server.DevArtworkThrottleBacklogTimeout))
 			}
 			hr(r, "getCoverArt", api.GetCoverArt)
+			hr(r, "getArtistRichImage", api.GetArtistRichImage)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(getPlayer(api.players))

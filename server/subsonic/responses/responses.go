@@ -39,12 +39,13 @@ type Subsonic struct {
 	ArtistWithAlbumsID3 *ArtistWithAlbumsID3 `xml:"artist,omitempty"                      json:"artist,omitempty"`
 	AlbumWithSongsID3   *AlbumWithSongsID3   `xml:"album,omitempty"                       json:"album,omitempty"`
 
-	AlbumInfo     *AlbumInfo     `xml:"albumInfo,omitempty"                               json:"albumInfo,omitempty"`
-	ArtistInfo    *ArtistInfo    `xml:"artistInfo,omitempty"                              json:"artistInfo,omitempty"`
-	ArtistInfo2   *ArtistInfo2   `xml:"artistInfo2,omitempty"                             json:"artistInfo2,omitempty"`
-	SimilarSongs  *SimilarSongs  `xml:"similarSongs,omitempty"                            json:"similarSongs,omitempty"`
-	SimilarSongs2 *SimilarSongs2 `xml:"similarSongs2,omitempty"                           json:"similarSongs2,omitempty"`
-	TopSongs      *TopSongs      `xml:"topSongs,omitempty"                                json:"topSongs,omitempty"`
+	AlbumInfo      *AlbumInfo      `xml:"albumInfo,omitempty"                               json:"albumInfo,omitempty"`
+	ArtistInfo     *ArtistInfo     `xml:"artistInfo,omitempty"                              json:"artistInfo,omitempty"`
+	ArtistInfo2    *ArtistInfo2    `xml:"artistInfo2,omitempty"                             json:"artistInfo2,omitempty"`
+	ArtistRichInfo *ArtistRichInfo `xml:"artistRichInfo,omitempty"                         json:"artistRichInfo,omitempty"`
+	SimilarSongs   *SimilarSongs   `xml:"similarSongs,omitempty"                            json:"similarSongs,omitempty"`
+	SimilarSongs2  *SimilarSongs2  `xml:"similarSongs2,omitempty"                           json:"similarSongs2,omitempty"`
+	TopSongs       *TopSongs       `xml:"topSongs,omitempty"                                json:"topSongs,omitempty"`
 
 	PlayQueue  *PlayQueue  `xml:"playQueue,omitempty"                                     json:"playQueue,omitempty"`
 	Shares     *Shares     `xml:"shares,omitempty"                                     json:"shares,omitempty"`
@@ -99,6 +100,16 @@ type Artist struct {
 	AverageRating  float64    `xml:"averageRating,attr,omitempty"      json:"averageRating,omitempty"`
 	CoverArt       string     `xml:"coverArt,attr,omitempty"           json:"coverArt,omitempty"`
 	ArtistImageUrl string     `xml:"artistImageUrl,attr,omitempty"     json:"artistImageUrl,omitempty"`
+}
+
+type ArtistRichInfo struct {
+	Name       string   `xml:"name,attr,omitempty"       json:"name,omitempty"`
+	Genres     []string `xml:"genre,omitempty"           json:"genres,omitempty"`
+	Followers  *int64   `xml:"followers,attr,omitempty"  json:"followers,omitempty"`
+	Popularity *int     `xml:"popularity,attr,omitempty" json:"popularity,omitempty"`
+	Biography  string   `xml:"biography,omitempty"       json:"biography,omitempty"`
+	HasAvatar  bool     `xml:"hasAvatar,attr"            json:"hasAvatar"`
+	HasHeader  bool     `xml:"hasHeader,attr"            json:"hasHeader"`
 }
 
 type Index struct {
