@@ -100,6 +100,7 @@ type configOptions struct {
 	AuthWindowLength                time.Duration
 	PasswordEncryptionKey           string
 	ExtAuth                         extAuthOptions
+	LDAP                            ldapOptions
 	Plugins                         pluginsOptions
 	HTTPHeaders                     httpHeaderOptions   `json:",omitzero"`
 	Prometheus                      prometheusOptions   `json:",omitzero"`
@@ -254,6 +255,21 @@ type extAuthOptions struct {
 	TrustedSources string
 	UserHeader     string
 	LogoutURL      string
+}
+
+type ldapOptions struct {
+	Enabled            bool
+	URL                string
+	BindDN             string
+	BindPassword       string
+	BaseDN             string
+	UserFilter         string
+	UserNameAttribute  string
+	NameAttribute      string
+	EmailAttribute     string
+	AutoCreateUsers    bool
+	StartTLS           bool
+	InsecureSkipVerify bool
 }
 
 type searchOptions struct {
@@ -766,6 +782,18 @@ func setViperDefaults() {
 	viper.SetDefault("extauth.userheader", "Remote-User")
 	viper.SetDefault("extauth.trustedsources", "")
 	viper.SetDefault("extauth.logouturl", "")
+	viper.SetDefault("ldap.enabled", false)
+	viper.SetDefault("ldap.url", "")
+	viper.SetDefault("ldap.binddn", "")
+	viper.SetDefault("ldap.bindpassword", "")
+	viper.SetDefault("ldap.basedn", "")
+	viper.SetDefault("ldap.userfilter", "(uid=%s)")
+	viper.SetDefault("ldap.usernameattribute", "uid")
+	viper.SetDefault("ldap.nameattribute", "cn")
+	viper.SetDefault("ldap.emailattribute", "mail")
+	viper.SetDefault("ldap.autocreateusers", true)
+	viper.SetDefault("ldap.starttls", false)
+	viper.SetDefault("ldap.insecureskipverify", false)
 	viper.SetDefault("prometheus.enabled", false)
 	viper.SetDefault("prometheus.metricspath", consts.PrometheusDefaultPath)
 	viper.SetDefault("prometheus.password", "")

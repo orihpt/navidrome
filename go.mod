@@ -25,6 +25,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/httprate v0.15.0
 	github.com/go-chi/jwtauth/v5 v5.4.0
+	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-viper/encoding/ini v0.1.1
 	github.com/gohugoio/hashstructure v0.6.0
 	github.com/google/go-pipeline v0.0.0-20230411140531-6cbedfc1d3fc
@@ -70,6 +71,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
+	github.com/Azure/go-ntlmssp v0.1.0 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/atombender/go-jsonschema v0.20.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -82,6 +84,7 @@ require (
 	github.com/dylibso/observe-sdk/go v0.0.0-20240828172851-9145d8ad07e1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect

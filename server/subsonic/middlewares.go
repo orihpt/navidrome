@@ -126,20 +126,35 @@ func authenticate(ds model.DataStore) func(next http.Handler) http.Handler {
 				salt, _ := p.String("s")
 				jwt, _ := p.String("jwt")
 
-				usr, err = ds.User(ctx).FindByUsernameWithPassword(username)
-				if errors.Is(err, context.Canceled) {
-					log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-					return
-				}
-				switch {
-				case errors.Is(err, model.ErrNotFound):
-					log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-				case err != nil:
-					log.Error(ctx, "API: Error authenticating username", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-				default:
-					err = validateCredentials(usr, pass, token, salt, jwt)
-					if err != nil {
+				if pass != "" {
+					usr, err = server.ValidateLogin(ctx, ds.User(ctx), username, decodePasswordParam(pass))
+					if errors.Is(err, context.Canceled) {
+						log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+						return
+					}
+					switch {
+					case err != nil:
+						log.Error(ctx, "API: Error authenticating username", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+					case usr == nil:
+						err = model.ErrInvalidAuth
 						log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+					}
+				} else {
+					usr, err = ds.User(ctx).FindByUsernameWithPassword(username)
+					if errors.Is(err, context.Canceled) {
+						log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+						return
+					}
+					switch {
+					case errors.Is(err, model.ErrNotFound):
+						log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+					case err != nil:
+						log.Error(ctx, "API: Error authenticating username", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+					default:
+						err = validateCredentials(usr, "", token, salt, jwt)
+						if err != nil {
+							log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+						}
 					}
 				}
 			}
@@ -178,6 +193,15 @@ func validateCredentials(user *model.User, pass, token, salt, jwt string) error 
 		return model.ErrInvalidAuth
 	}
 	return nil
+}
+
+func decodePasswordParam(pass string) string {
+	if strings.HasPrefix(pass, "enc:") {
+		if dec, err := hex.DecodeString(pass[4:]); err == nil {
+			return string(dec)
+		}
+	}
+	return pass
 }
 
 func getPlayer(players core.Players) func(next http.Handler) http.Handler {

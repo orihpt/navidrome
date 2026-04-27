@@ -47,7 +47,7 @@ func login(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {
 }
 
 func doLogin(ds model.DataStore, username string, password string, w http.ResponseWriter, r *http.Request) {
-	user, err := validateLogin(ds.User(r.Context()), username, password)
+	user, err := ValidateLogin(r.Context(), ds.User(r.Context()), username, password)
 	if err != nil {
 		_ = rest.RespondWithError(w, http.StatusInternalServerError, "Unknown error authentication user. Please try again")
 		return
@@ -153,16 +153,16 @@ func createAdminUser(ctx context.Context, ds model.DataStore, username, password
 	return nil
 }
 
-func validateLogin(userRepo model.UserRepository, userName, password string) (*model.User, error) {
+func ValidateLogin(ctx context.Context, userRepo model.UserRepository, userName, password string) (*model.User, error) {
 	u, err := userRepo.FindByUsernameWithPassword(userName)
 	if errors.Is(err, model.ErrNotFound) {
-		return nil, nil
+		return authenticateLDAPAndSyncUser(ctx, userRepo, userName, password)
 	}
 	if err != nil {
 		return nil, err
 	}
 	if u.Password != password {
-		return nil, nil
+		return authenticateLDAPAndSyncUser(ctx, userRepo, userName, password)
 	}
 	err = userRepo.UpdateLastLoginAt(u.ID)
 	if err != nil {
