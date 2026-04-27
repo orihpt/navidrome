@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core/publicurl"
@@ -382,15 +383,22 @@ func (api *Router) GetSimilarSongs2(r *http.Request) (*responses.Subsonic, error
 func (api *Router) GetTopSongs(r *http.Request) (*responses.Subsonic, error) {
 	ctx := r.Context()
 	p := req.Params(r)
-	artist, err := p.String("artist")
+	artistName, err := p.String("artist")
 	if err != nil {
 		return nil, err
 	}
 	count := p.IntOr("count", 50)
 
-	songs, err := api.provider.TopSongs(ctx, artist, count)
+	var songs model.MediaFiles
+	artists, err := api.ds.Artist(ctx).GetAll(model.QueryOptions{Filters: squirrel.Eq{"name": artistName}, Max: 1})
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		return nil, err
+	}
+	if len(artists) > 0 {
+		songs, err = api.ds.MediaFile(ctx).GetTopPlayedByArtist(artists[0].ID, count)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	response := newResponse()

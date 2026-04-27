@@ -231,6 +231,51 @@ func (r *mediaFileRepository) GetAllByTags(tag model.TagName, values []string, o
 	return r.GetAll(opts)
 }
 
+func (r *mediaFileRepository) GetTopPlayedByArtist(artistID string, count int) (model.MediaFiles, error) {
+	if count <= 0 {
+		count = 50
+	}
+	playCounts := Select("item_id", "sum(coalesce(play_count, 0)) as global_play_count").
+		From("annotation").
+		Where(Eq{"item_type": "media_file"}).
+		GroupBy("item_id")
+	playCountsSQL, playCountsArgs, err := playCounts.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	artistFilter := Or{
+		Eq{"media_file.artist_id": artistID},
+		Exists("json_tree(media_file.participants, '$.artist')", Eq{"value": artistID}),
+	}
+	sql := r.newSelect().
+		Columns(
+			"media_file.*",
+			"library.path as library_path",
+			"library.name as library_name",
+			"coalesce(global_play_count, 0) as play_count",
+			"0 as starred",
+			"0 as rating",
+			"null as starred_at",
+			"null as play_date",
+			"null as rated_at",
+			"media_file.average_rating",
+		).
+		LeftJoin("library on media_file.library_id = library.id").
+		LeftJoin("("+playCountsSQL+") as global_annotations on global_annotations.item_id = media_file.id", playCountsArgs...).
+		Where(artistFilter).
+		OrderBy("global_play_count desc", "media_file.order_title").
+		Limit(uint64(count))
+	sql = r.applyLibraryFilter(sql)
+
+	var res dbMediaFiles
+	err = r.queryAll(sql, &res)
+	if err != nil {
+		return nil, err
+	}
+	return res.toModels(), nil
+}
+
 func (r *mediaFileRepository) GetCursor(options ...model.QueryOptions) (model.MediaFileCursor, error) {
 	sq := r.selectMediaFile(options...)
 	cursor, err := queryWithStableResults[dbMediaFile](r.sqlRepository, sq)
