@@ -3,6 +3,8 @@ package lyrics
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/utils/gg"
@@ -100,6 +102,46 @@ var _ = Describe("sources", func() {
 			Expect(lyrics[0].Raw).To(ContainSubstring("<tt xmlns=\"http://www.w3.org/ns/ttml\">"))
 			Expect(lyrics[0].Line).To(BeEmpty())
 			Expect(lyrics[0].Synced).To(BeTrue())
+		})
+
+		It("should find TTML lyrics anywhere under the artist folder", func() {
+			libraryPath := GinkgoT().TempDir()
+			linkinLyrics := `<tt xmlns="http://www.w3.org/ns/ttml"><body>linkin park lyrics</body></tt>`
+			museLyrics := `<tt xmlns="http://www.w3.org/ns/ttml"><body>muse lyrics</body></tt>`
+
+			Expect(os.MkdirAll(filepath.Join(libraryPath, "Linkin Park", "Meteora"), 0755)).To(Succeed())
+			Expect(os.MkdirAll(filepath.Join(libraryPath, "Muse", "Origin of Symmetry"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(libraryPath, "Linkin Park", "Meteora", "Blackout.ttml"), []byte(linkinLyrics), 0644)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(libraryPath, "Muse", "Origin of Symmetry", "Blackout.ttml"), []byte(museLyrics), 0644)).To(Succeed())
+
+			mf := model.MediaFile{
+				LibraryPath: libraryPath,
+				Path:        filepath.Join("Linkin Park", "A Thousand Suns (Bonus Edition)", "Blackout.flac"),
+				Title:       "Blackout",
+			}
+			lyrics, err := fromExternalTTML(ctx, &mf, ".ttml")
+
+			Expect(err).To(BeNil())
+			Expect(lyrics).To(HaveLen(1))
+			Expect(lyrics[0].Raw).To(ContainSubstring("linkin park lyrics"))
+			Expect(lyrics[0].Raw).ToNot(ContainSubstring("muse lyrics"))
+		})
+
+		It("should match recursive lyrics by track title when the audio filename has a track number", func() {
+			libraryPath := GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(libraryPath, "Linkin Park", "A Thousand Suns"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(libraryPath, "Linkin Park", "A Thousand Suns", "Blackout.ttml"), []byte(`<tt>title match</tt>`), 0644)).To(Succeed())
+
+			mf := model.MediaFile{
+				LibraryPath: libraryPath,
+				Path:        filepath.Join("Linkin Park", "Meteora", "03 Blackout.flac"),
+				Title:       "Blackout",
+			}
+			lyrics, err := fromExternalTTML(ctx, &mf, ".ttml")
+
+			Expect(err).To(BeNil())
+			Expect(lyrics).To(HaveLen(1))
+			Expect(lyrics[0].Raw).To(ContainSubstring("title match"))
 		})
 
 		It("should return unsynchronized lyrics from a file", func() {

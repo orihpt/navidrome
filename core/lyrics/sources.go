@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/navidrome/navidrome/log"
@@ -24,16 +24,15 @@ func fromEmbedded(ctx context.Context, mf *model.MediaFile) (model.LyricList, er
 }
 
 func fromExternalFile(ctx context.Context, mf *model.MediaFile, suffix string) (model.LyricList, error) {
-	basePath := mf.AbsolutePath()
-	ext := path.Ext(basePath)
-
-	externalLyric := basePath[0:len(basePath)-len(ext)] + suffix
+	externalLyric, err := findExternalLyric(ctx, mf, suffix)
+	if err != nil {
+		return nil, err
+	} else if externalLyric == "" {
+		return nil, nil
+	}
 
 	contents, err := ioutils.UTF8ReadFile(externalLyric)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Trace(ctx, "no lyrics found at path", "path", externalLyric)
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -56,16 +55,15 @@ func fromExternalFile(ctx context.Context, mf *model.MediaFile, suffix string) (
 }
 
 func fromExternalTTML(ctx context.Context, mf *model.MediaFile, suffix string) (model.LyricList, error) {
-	basePath := mf.AbsolutePath()
-	ext := path.Ext(basePath)
-
-	externalLyric := basePath[0:len(basePath)-len(ext)] + suffix
+	externalLyric, err := findExternalLyric(ctx, mf, suffix)
+	if err != nil {
+		return nil, err
+	} else if externalLyric == "" {
+		return nil, nil
+	}
 
 	contents, err := ioutils.UTF8ReadFile(externalLyric)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Trace(ctx, "no lyrics found at path", "path", externalLyric)
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -82,6 +80,77 @@ func fromExternalTTML(ctx context.Context, mf *model.MediaFile, suffix string) (
 		Raw:    raw,
 		Synced: true,
 	}}, nil
+}
+
+func findExternalLyric(ctx context.Context, mf *model.MediaFile, suffix string) (string, error) {
+	basePath := mf.AbsolutePath()
+	externalLyric := strings.TrimSuffix(basePath, filepath.Ext(basePath)) + suffix
+
+	if _, err := os.Stat(externalLyric); err == nil {
+		return externalLyric, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+
+	artistLyric, err := findExternalLyricInArtistFolder(mf, suffix)
+	if err != nil {
+		return "", err
+	} else if artistLyric != "" {
+		return artistLyric, nil
+	}
+
+	log.Trace(ctx, "no lyrics found at path", "path", externalLyric)
+	return "", nil
+}
+
+func findExternalLyricInArtistFolder(mf *model.MediaFile, suffix string) (string, error) {
+	artistFolder := artistFolderPath(mf)
+	if artistFolder == "" {
+		return "", nil
+	}
+
+	audioStem := strings.TrimSuffix(filepath.Base(mf.Path), filepath.Ext(mf.Path))
+	title := strings.TrimSpace(mf.Title)
+	if audioStem == "" && title == "" {
+		return "", nil
+	}
+
+	var found string
+	err := filepath.WalkDir(artistFolder, func(candidate string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !strings.EqualFold(filepath.Ext(candidate), suffix) {
+			return nil
+		}
+
+		stem := strings.TrimSuffix(filepath.Base(candidate), filepath.Ext(candidate))
+		if (audioStem != "" && strings.EqualFold(stem, audioStem)) || (title != "" && strings.EqualFold(stem, title)) {
+			found = candidate
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return found, nil
+}
+
+func artistFolderPath(mf *model.MediaFile) string {
+	cleanPath := filepath.Clean(filepath.FromSlash(mf.Path))
+	if cleanPath == "." || cleanPath == string(filepath.Separator) {
+		return ""
+	}
+
+	parts := strings.Split(cleanPath, string(filepath.Separator))
+	if len(parts) < 2 || parts[0] == "." || parts[0] == ".." || parts[0] == "" {
+		return ""
+	}
+	return filepath.Join(mf.LibraryPath, parts[0])
 }
 
 // fromPlugin attempts to load lyrics from a plugin with the given name.
