@@ -17,6 +17,7 @@ import (
 	"github.com/navidrome/navidrome/resources"
 	"github.com/navidrome/navidrome/scanner"
 	"github.com/navidrome/navidrome/scheduler"
+	"github.com/navidrome/navidrome/server"
 	"github.com/navidrome/navidrome/server/backgrounds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -115,6 +116,9 @@ func mainContext(ctx context.Context) (context.Context, context.CancelFunc) {
 func startServer(ctx context.Context) func() error {
 	return func() error {
 		a := CreateServer()
+		if conf.Server.WavesMusicRecommendationURL != "" {
+			a.MountRouter("Waves Music Recommendation API", consts.URLPathNativeAPI+"/v1/recommend", server.NewRecommendationsProxy(conf.Server.WavesMusicRecommendationURL))
+		}
 		a.MountRouter("Native API", consts.URLPathNativeAPI, CreateNativeAPIRouter(ctx))
 		a.MountRouter("Subsonic API", consts.URLPathSubsonicAPI, CreateSubsonicAPIRouter(ctx))
 		a.MountRouter("Public Endpoints", consts.URLPathPublic, CreatePublicRouter())
