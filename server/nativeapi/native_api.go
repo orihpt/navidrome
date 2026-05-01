@@ -58,6 +58,7 @@ func (api *Router) routes() http.Handler {
 
 	// Public
 	api.RX(r, "/translation", newTranslationRepository, false)
+	r.Get("/about", getAbout)
 
 	// Protected
 	r.Group(func(r chi.Router) {

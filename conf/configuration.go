@@ -117,6 +117,7 @@ type configOptions struct {
 	Tags                            map[string]TagConf `json:",omitempty"`
 	Agents                          string
 	WavesMusicRecommendationURL     string
+	WavesMusicAboutPath             string
 
 	// DevFlags. These are used to enable/disable debugging and incomplete features
 	DevLogLevels                      map[string]string `json:",omitempty"`
@@ -321,6 +322,9 @@ func Load(noConfigDump bool) {
 	}
 	if Server.WavesMusicRecommendationURL == "" {
 		Server.WavesMusicRecommendationURL = os.Getenv("WAVES_MUSIC_RECOMMENDATION_URL")
+	}
+	if Server.WavesMusicAboutPath == "" {
+		Server.WavesMusicAboutPath = os.Getenv("WAVES_MUSIC_ABOUT_MD_PATH")
 	}
 
 	err = os.MkdirAll(Server.DataFolder, os.ModePerm)
@@ -836,6 +840,7 @@ func setViperDefaults() {
 	viper.SetDefault("listenbrainz.trackalgorithm", consts.DefaultListenBrainzTrackAlgorithm)
 	viper.SetDefault("enablescrobblehistory", true)
 	viper.SetDefault("wavesmusicrecommendationurl", "")
+	viper.SetDefault("wavesmusicaboutpath", "")
 	viper.SetDefault("httpheaders.frameoptions", "DENY")
 	viper.SetDefault("backup.path", "")
 	viper.SetDefault("backup.schedule", "")
