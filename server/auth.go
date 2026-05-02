@@ -155,13 +155,21 @@ func createAdminUser(ctx context.Context, ds model.DataStore, username, password
 
 func ValidateLogin(ctx context.Context, userRepo model.UserRepository, userName, password string) (*model.User, error) {
 	u, err := userRepo.FindByUsernameWithPassword(userName)
+	skipLDAP := userName == "admin" || strings.HasPrefix(userName, "wavesmusic")
+
 	if errors.Is(err, model.ErrNotFound) {
+		if skipLDAP {
+			return nil, nil
+		}
 		return authenticateLDAPAndSyncUser(ctx, userRepo, userName, password)
 	}
 	if err != nil {
 		return nil, err
 	}
 	if u.Password != password {
+		if skipLDAP {
+			return nil, nil
+		}
 		return authenticateLDAPAndSyncUser(ctx, userRepo, userName, password)
 	}
 	err = userRepo.UpdateLastLoginAt(u.ID)
@@ -267,6 +275,26 @@ func Authenticator(ds model.DataStore) func(next http.Handler) http.Handler {
 			}
 
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func AdminOnlyUI(ds model.DataStore) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, err := authenticateRequest(ds, r, UsernameFromConfig, UsernameFromToken, UsernameFromExtAuthHeader)
+			if err == nil {
+				// User is authenticated, check if admin
+				user, ok := request.UserFrom(ctx)
+				if ok && !user.IsAdmin {
+					log.Warn(r, "Non-admin user tried to access UI", "username", user.UserName)
+					http.Error(w, "Only admins are allowed to access the Web UI", http.StatusForbidden)
+					return
+				}
+			}
+			// If not authenticated, we allow it so they can see the login page
+			// If authenticated and admin, we allow it.
+			next.ServeHTTP(w, r)
 		})
 	}
 }
