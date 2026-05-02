@@ -59,10 +59,12 @@ type Subsonic struct {
 	JukeboxPlaylist *JukeboxPlaylist `xml:"jukeboxPlaylist,omitempty"                     json:"jukeboxPlaylist,omitempty"`
 
 	// OpenSubsonic extensions
-	OpenSubsonicExtensions *OpenSubsonicExtensions `xml:"openSubsonicExtensions,omitempty"  json:"openSubsonicExtensions,omitempty"`
-	LyricsList             *LyricsList             `xml:"lyricsList,omitempty"              json:"lyricsList,omitempty"`
-	PlayQueueByIndex       *PlayQueueByIndex       `xml:"playQueueByIndex,omitempty" json:"playQueueByIndex,omitempty"`
-	TranscodeDecision      *TranscodeDecision      `xml:"transcodeDecision,omitempty"       json:"transcodeDecision,omitempty"`
+	OpenSubsonicExtensions   *OpenSubsonicExtensions   `xml:"openSubsonicExtensions,omitempty"  json:"openSubsonicExtensions,omitempty"`
+	LyricsList               *LyricsList               `xml:"lyricsList,omitempty"              json:"lyricsList,omitempty"`
+	PlayQueueByIndex         *PlayQueueByIndex         `xml:"playQueueByIndex,omitempty" json:"playQueueByIndex,omitempty"`
+	TranscodeDecision        *TranscodeDecision        `xml:"transcodeDecision,omitempty"       json:"transcodeDecision,omitempty"`
+	ArtistRequests           *ArtistRequests           `xml:"artistRequests,omitempty"          json:"artistRequests,omitempty"`
+	ArtistRequestSuggestions *ArtistRequestSuggestions `xml:"artistRequestSuggestions,omitempty" json:"artistRequestSuggestions,omitempty"`
 }
 
 const (
@@ -90,6 +92,23 @@ type MusicFolder struct {
 
 type MusicFolders struct {
 	Folders []MusicFolder `xml:"musicFolder"             json:"musicFolder,omitempty"`
+}
+
+type ArtistRequest struct {
+	ID        string `xml:"id,attr"        json:"id"`
+	Name      string `xml:"name,attr"      json:"name"`
+	Status    string `xml:"status,attr"    json:"status"`
+	VoteCount int    `xml:"voteCount,attr" json:"voteCount"`
+	UserVoted bool   `xml:"userVoted,attr" json:"userVoted"`
+}
+
+type ArtistRequests struct {
+	Artist  []ArtistRequest `xml:"artistRequest" json:"artistRequest,omitempty"`
+	IsAdmin bool            `xml:"isAdmin,attr"  json:"isAdmin"`
+}
+
+type ArtistRequestSuggestions struct {
+	Name []string `xml:"name" json:"name,omitempty"`
 }
 
 type Artist struct {

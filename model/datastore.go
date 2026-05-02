@@ -40,6 +40,7 @@ type DataStore interface {
 	ScrobbleBuffer(ctx context.Context) ScrobbleBufferRepository
 	Scrobble(ctx context.Context) ScrobbleRepository
 	Plugin(ctx context.Context) PluginRepository
+	ArtistRequest(ctx context.Context) ArtistRequestRepository
 
 	Resource(ctx context.Context, model any) ResourceRepository
 

@@ -28,6 +28,7 @@ type MockDataStore struct {
 	MockedScrobble       model.ScrobbleRepository
 	MockedRadio          model.RadioRepository
 	MockedPlugin         model.PluginRepository
+	MockedArtistRequest  model.ArtistRequestRepository
 	scrobbleBufferMu     sync.Mutex
 	repoMu               sync.Mutex
 
@@ -89,6 +90,17 @@ func (db *MockDataStore) Artist(ctx context.Context) model.ArtistRepository {
 	}
 	db.MockedArtist = CreateMockArtistRepo()
 	return db.MockedArtist
+}
+
+func (db *MockDataStore) ArtistRequest(ctx context.Context) model.ArtistRequestRepository {
+	if db.MockedArtistRequest != nil {
+		return db.MockedArtistRequest
+	}
+	if db.RealDS != nil {
+		return db.RealDS.ArtistRequest(ctx)
+	}
+	db.MockedArtistRequest = struct{ model.ArtistRequestRepository }{}
+	return db.MockedArtistRequest
 }
 
 func (db *MockDataStore) MediaFile(ctx context.Context) model.MediaFileRepository {

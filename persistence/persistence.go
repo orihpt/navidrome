@@ -29,6 +29,10 @@ func (s *SQLStore) Artist(ctx context.Context) model.ArtistRepository {
 	return NewArtistRepository(ctx, s.getDBXBuilder())
 }
 
+func (s *SQLStore) ArtistRequest(ctx context.Context) model.ArtistRequestRepository {
+	return NewArtistRequestRepository(ctx, s.getDBXBuilder())
+}
+
 func (s *SQLStore) MediaFile(ctx context.Context) model.MediaFileRepository {
 	return NewMediaFileRepository(ctx, s.getDBXBuilder())
 }

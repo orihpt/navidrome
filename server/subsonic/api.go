@@ -169,6 +169,15 @@ func (api *Router) routes() http.Handler {
 			h(r, "getUsers", api.GetUsers)
 		})
 		r.Group(func(r chi.Router) {
+			h(r, "getArtistRequests", api.GetArtistRequests)
+			h(r, "createArtistRequest", api.CreateArtistRequest)
+			h(r, "toggleArtistRequestVote", api.ToggleArtistRequestVote)
+			h(r, "deleteArtistRequest", api.DeleteArtistRequest)
+			h(r, "moveArtistRequest", api.MoveArtistRequest)
+			h(r, "updateArtistRequestName", api.UpdateArtistRequestName)
+			h(r, "getArtistRequestSuggestions", api.GetArtistRequestSuggestions)
+		})
+		r.Group(func(r chi.Router) {
 			r.Use(getPlayer(api.players))
 			h(r, "getScanStatus", api.GetScanStatus)
 			h(r, "startScan", api.StartScan)
