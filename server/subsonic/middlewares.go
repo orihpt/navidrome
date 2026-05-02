@@ -31,7 +31,7 @@ import (
 
 func postFormToQueryParams(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10MB
+		r.Body = http.MaxBytesReader(w, r.Body, 32<<20) // 32MB, enough for curator CSV/XLSX imports
 		err := r.ParseForm()
 		if err != nil {
 			sendError(w, r, newError(responses.ErrorGeneric, err.Error()))

@@ -152,6 +152,7 @@ func (api *Router) buildPlaylist(ctx context.Context, p model.Playlist) response
 	pls.Comment = p.Comment
 	pls.Owner = p.OwnerName
 	pls.Public = p.Public
+	pls.CuratorPinned = p.CuratorPinned
 	pls.CoverArt = p.CoverArtID().String()
 	pls.OpenSubsonicPlaylist = buildOSPlaylist(ctx, p)
 

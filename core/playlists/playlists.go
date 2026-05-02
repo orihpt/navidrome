@@ -28,6 +28,7 @@ type Playlists interface {
 	Create(ctx context.Context, playlistId string, name string, ids []string) (string, error)
 	Delete(ctx context.Context, id string) error
 	Update(ctx context.Context, playlistID string, name *string, comment *string, public *bool, idsToAdd []string, idxToRemove []int) error
+	SetCuratorPinned(ctx context.Context, playlistID string, pinned bool) error
 
 	// Track management
 	AddTracks(ctx context.Context, playlistID string, ids []string) (int, error)
@@ -238,6 +239,19 @@ func (s *playlists) updateMetadata(ctx context.Context, ds model.DataStore, pls 
 		pls.Public = *public
 	}
 	return ds.Playlist(ctx).Put(pls)
+}
+
+func (s *playlists) SetCuratorPinned(ctx context.Context, playlistID string, pinned bool) error {
+	pls, err := s.checkWritable(ctx, playlistID)
+	if err != nil {
+		return err
+	}
+	usr, _ := request.UserFrom(ctx)
+	if usr.UserName != "wavesmusic_curator" || pls.OwnerID != usr.ID {
+		return model.ErrNotAuthorized
+	}
+	pls.CuratorPinned = pinned
+	return s.ds.Playlist(ctx).Put(pls)
 }
 
 // --- Track management operations ---

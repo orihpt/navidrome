@@ -65,6 +65,7 @@ type Subsonic struct {
 	TranscodeDecision        *TranscodeDecision        `xml:"transcodeDecision,omitempty"       json:"transcodeDecision,omitempty"`
 	ArtistRequests           *ArtistRequests           `xml:"artistRequests,omitempty"          json:"artistRequests,omitempty"`
 	ArtistRequestSuggestions *ArtistRequestSuggestions `xml:"artistRequestSuggestions,omitempty" json:"artistRequestSuggestions,omitempty"`
+	CuratorPlaylistImport    *CuratorPlaylistImport    `xml:"curatorPlaylistImport,omitempty"   json:"curatorPlaylistImport,omitempty"`
 }
 
 const (
@@ -335,6 +336,7 @@ type Playlist struct {
 	SongCount             int32     `xml:"songCount,attr"                json:"songCount"`
 	Duration              int32     `xml:"duration,attr"                 json:"duration"`
 	Public                bool      `xml:"public,attr"                   json:"public,omitempty"`
+	CuratorPinned         bool      `xml:"curatorPinned,attr,omitempty"  json:"curatorPinned,omitempty"`
 	Owner                 string    `xml:"owner,attr,omitempty"          json:"owner,omitempty"`
 	Created               time.Time `xml:"created,attr"                  json:"created"`
 	Changed               time.Time `xml:"changed,attr"                  json:"changed"`
@@ -354,6 +356,27 @@ type OpenSubsonicPlaylist struct {
 
 type Playlists struct {
 	Playlist []Playlist `xml:"playlist"                           json:"playlist,omitempty"`
+}
+
+type CuratorImportRow struct {
+	Index  int    `xml:"index,attr"            json:"index"`
+	Artist string `xml:"artist,attr,omitempty" json:"artist,omitempty"`
+	Album  string `xml:"album,attr,omitempty"  json:"album,omitempty"`
+	Name   string `xml:"name,attr,omitempty"   json:"name,omitempty"`
+	ISRC   string `xml:"isrc,attr,omitempty"   json:"isrc,omitempty"`
+	SongID string `xml:"songId,attr,omitempty" json:"songId,omitempty"`
+	Title  string `xml:"title,attr,omitempty"  json:"title,omitempty"`
+}
+
+type CuratorImportRows struct {
+	Rows []CuratorImportRow `xml:"row" json:"row,omitempty"`
+}
+
+type CuratorPlaylistImport struct {
+	PlaylistID    string            `xml:"playlistId,attr" json:"playlistId"`
+	ExactMatches  CuratorImportRows `xml:"exactMatches"    json:"exactMatches"`
+	NameMatches   CuratorImportRows `xml:"nameMatches"     json:"nameMatches"`
+	MissingTracks CuratorImportRows `xml:"missingTracks"   json:"missingTracks"`
 }
 
 type PlaylistWithSongs struct {

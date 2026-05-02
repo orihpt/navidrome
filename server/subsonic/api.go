@@ -147,6 +147,10 @@ func (api *Router) routes() http.Handler {
 			h(r, "createPlaylist", api.CreatePlaylist)
 			h(r, "deletePlaylist", api.DeletePlaylist)
 			h(r, "updatePlaylist", api.UpdatePlaylist)
+			h(r, "getCuratorPlaylists", api.GetCuratorPlaylists)
+			hr(r, "importCuratorPlaylist", api.ImportCuratorPlaylist)
+			h(r, "setCuratorPlaylistPublished", api.SetCuratorPlaylistPublished)
+			h(r, "setCuratorPlaylistPinned", api.SetCuratorPlaylistPinned)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(getPlayer(api.players))
