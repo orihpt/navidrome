@@ -39,3 +39,6 @@ AGENTS.md
 openspec/
 go.work*
 .worktrees/
+/offline/
+/offline.zip
+

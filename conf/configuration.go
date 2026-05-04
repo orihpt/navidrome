@@ -117,7 +117,6 @@ type configOptions struct {
 	Tags                            map[string]TagConf `json:",omitempty"`
 	Agents                          string
 	WavesMusicRecommendationURL     string
-	WavesMusicAboutPath             string
 
 	// DevFlags. These are used to enable/disable debugging and incomplete features
 	DevLogLevels                      map[string]string `json:",omitempty"`
@@ -322,9 +321,6 @@ func Load(noConfigDump bool) {
 	}
 	if Server.WavesMusicRecommendationURL == "" {
 		Server.WavesMusicRecommendationURL = os.Getenv("WAVES_MUSIC_RECOMMENDATION_URL")
-	}
-	if Server.WavesMusicAboutPath == "" {
-		Server.WavesMusicAboutPath = os.Getenv("WAVES_MUSIC_ABOUT_MD_PATH")
 	}
 
 	err = os.MkdirAll(Server.DataFolder, os.ModePerm)

@@ -15,6 +15,9 @@ type User struct {
 	CreatedAt    time.Time  `structs:"created_at" json:"createdAt"`
 	UpdatedAt    time.Time  `structs:"updated_at" json:"updatedAt"`
 
+	UserData          string     `structs:"user_data" json:"userData"`
+	UserDataUpdatedAt *time.Time `structs:"user_data_updated_at" json:"userDataUpdatedAt"`
+
 	// Library associations (many-to-many relationship)
 	Libraries Libraries `structs:"-" json:"libraries,omitempty"`
 

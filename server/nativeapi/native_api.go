@@ -58,7 +58,6 @@ func (api *Router) routes() http.Handler {
 
 	// Public
 	api.RX(r, "/translation", newTranslationRepository, false)
-	r.Get("/about", getAbout)
 
 	// Protected
 	r.Group(func(r chi.Router) {
@@ -66,6 +65,10 @@ func (api *Router) routes() http.Handler {
 		r.Use(server.JWTRefresher)
 		r.Use(server.UpdateLastAccessMiddleware(api.ds))
 		api.RX(r, "/user", api.users.NewRepository, true)
+		r.Route("/user/sync", func(r chi.Router) {
+			r.Get("/", api.getUserSync)
+			r.Post("/", api.postUserSync)
+		})
 		api.R(r, "/song", model.MediaFile{}, false)
 		api.R(r, "/album", model.Album{}, false)
 		api.addArtistRoute(r)
