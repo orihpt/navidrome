@@ -9,7 +9,7 @@ import (
 )
 
 type UserSyncResponse struct {
-	UserData          string     `json:"userData"`
+	UserData          *string    `json:"userData"`
 	UserDataUpdatedAt *time.Time `json:"userDataUpdatedAt"`
 }
 
