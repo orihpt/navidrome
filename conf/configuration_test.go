@@ -24,6 +24,8 @@ var _ = Describe("Configuration", func() {
 		conf.SetViperDefaults()
 		viper.SetDefault("datafolder", GinkgoT().TempDir())
 		viper.SetDefault("loglevel", "error")
+		viper.SetDefault("mongodburi", "mongodb://localhost:27017")
+		viper.SetDefault("mongodbdatabase", "waves_music_test")
 		conf.ResetConf()
 
 		// Panic instead of exiting on fatal errors to allow testing error conditions
@@ -131,6 +133,8 @@ var _ = Describe("Configuration", func() {
 			conf.SetViperDefaults()
 			viper.SetDefault("datafolder", GinkgoT().TempDir())
 			viper.SetDefault("loglevel", "error")
+			viper.SetDefault("mongodburi", "mongodb://localhost:27017")
+			viper.SetDefault("mongodbdatabase", "waves_music_test")
 			conf.ResetConf()
 		})
 
@@ -171,6 +175,8 @@ var _ = Describe("Configuration", func() {
 			viper.Reset()
 			conf.SetViperDefaults()
 			viper.SetDefault("loglevel", "error")
+			viper.SetDefault("mongodburi", "mongodb://localhost:27017")
+			viper.SetDefault("mongodbdatabase", "waves_music_test")
 			conf.ResetConf()
 
 			// Create a file so that any path under it is invalid on all OSes
@@ -225,6 +231,8 @@ var _ = Describe("Configuration", func() {
 			conf.SetViperDefaults()
 			viper.SetDefault("datafolder", GinkgoT().TempDir())
 			viper.SetDefault("loglevel", "error")
+			viper.SetDefault("mongodburi", "mongodb://localhost:27017")
+			viper.SetDefault("mongodbdatabase", "waves_music_test")
 			conf.ResetConf()
 		})
 

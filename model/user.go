@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/navidrome/navidrome/consts"
 )
 
 type User struct {
@@ -17,6 +19,9 @@ type User struct {
 
 	UserData          *string    `structs:"user_data" json:"userData"`
 	UserDataUpdatedAt *time.Time `structs:"user_data_updated_at" json:"userDataUpdatedAt"`
+
+	AvatarFile string `structs:"avatar_file" json:"avatarFile"`
+	About      string `structs:"about"       json:"about"`
 
 	// Library associations (many-to-many relationship)
 	Libraries Libraries `structs:"-" json:"libraries,omitempty"`
@@ -44,6 +49,10 @@ func (u User) HasLibraryAccess(libraryID int) bool {
 
 type Users []User
 
+func (u User) AvatarPath() string {
+	return UploadedImagePath(consts.EntityUser, u.AvatarFile)
+}
+
 type UserRepository interface {
 	ResourceRepository
 	CountAll(...QueryOptions) (int64, error)
@@ -62,4 +71,18 @@ type UserRepository interface {
 	// Library association methods
 	GetUserLibraries(userID string) (Libraries, error)
 	SetUserLibraries(userID string, libraryIDs []int) error
+
+	// Social methods
+	Search(query string, options ...QueryOptions) (Users, error)
+	Follow(followerID, followedID string) error
+	Unfollow(followerID, followedID string) error
+	GetFollowers(userID string) (Users, error)
+	GetFollowing(userID string) (Users, error)
+	IsFollowing(followerID, followedID string) (bool, error)
+}
+
+type Follow struct {
+	FollowerID string    `json:"followerId"`
+	FollowedID string    `json:"followedId"`
+	CreatedAt  time.Time `json:"createdAt"`
 }

@@ -1,7 +1,8 @@
 User = "deluan"
 Password = "wordpass"
-DbPath = "file::memory:?cache=shared"
 DataFolder = "tmp/tests"
+MongoDBURI = "mongodb://localhost:27017"
+MongoDBDatabase = "waves_music_tests"
 ScanSchedule="0"
 Plugins.Enabled = true
 Plugins.Folder = "plugins/testdata"

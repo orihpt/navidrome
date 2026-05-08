@@ -2,10 +2,12 @@ GO_VERSION=$(shell grep "^go " go.mod | cut -f 2 -d ' ')
 NODE_VERSION=$(shell cat .nvmrc)
 
 comma:=,
-GO_BUILD_TAGS=netgo,sqlite_fts5$(if $(EXTRA_BUILD_TAGS),$(comma)$(EXTRA_BUILD_TAGS))
+GO_BUILD_TAGS=netgo$(if $(EXTRA_BUILD_TAGS),$(comma)$(EXTRA_BUILD_TAGS))
 
 # Set global environment variables, required for most targets
 export ND_ENABLEINSIGHTSCOLLECTOR=false
+export MONGODB_URI?=mongodb://localhost:27017
+export MONGODB_DATABASE?=waves_music
 
 ifneq ("$(wildcard .git/HEAD)","")
 GIT_SHA=$(shell git rev-parse --short HEAD)
@@ -124,14 +126,14 @@ snapshots: ##@Development Update (GoLang) Snapshot tests
 	UPDATE_SNAPSHOTS=true go tool ginkgo ./server/subsonic/responses/...
 .PHONY: snapshots
 
-migration-sql: ##@Development Create an empty SQL migration file
-	@if [ -z "${name}" ]; then echo "Usage: make migration-sql name=name_of_migration_file"; exit 1; fi
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir db/migrations create ${name} sql
+migration-sql: ##@Development Disabled: Waves Music uses MongoDB only
+	@echo "SQL migrations are disabled. Waves Music uses MongoDB as the only database."
+	@exit 1
 .PHONY: migration
 
-migration-go: ##@Development Create an empty Go migration file
-	@if [ -z "${name}" ]; then echo "Usage: make migration-go name=name_of_migration_file"; exit 1; fi
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir db/migrations create ${name}
+migration-go: ##@Development Disabled: Waves Music uses MongoDB only
+	@echo "Goose migrations are disabled. Waves Music uses MongoDB as the only database."
+	@exit 1
 .PHONY: migration
 
 setup-dev: setup

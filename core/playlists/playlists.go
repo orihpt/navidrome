@@ -237,7 +237,14 @@ func (s *playlists) updateMetadata(ctx context.Context, ds model.DataStore, pls 
 	}
 	if public != nil {
 		pls.Public = *public
+		if *public && pls.Visibility == model.PlaylistVisibilityPrivate {
+			pls.Visibility = model.PlaylistVisibilityFeatured
+		}
+		if !*public {
+			pls.Visibility = model.PlaylistVisibilityPrivate
+		}
 	}
+	pls.NormalizeVisibility()
 	return ds.Playlist(ctx).Put(pls)
 }
 

@@ -10,10 +10,8 @@ import (
 
 	"github.com/navidrome/navidrome/core"
 	"github.com/navidrome/navidrome/core/playlists"
-	"github.com/navidrome/navidrome/db"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
-	"github.com/navidrome/navidrome/persistence"
 	"github.com/navidrome/navidrome/scanner"
 	"github.com/navidrome/navidrome/utils/pl"
 	"github.com/spf13/cobra"
@@ -72,9 +70,7 @@ func trackScanAsSubprocess(ctx context.Context, progress <-chan *scanner.Progres
 }
 
 func runScanner(ctx context.Context) {
-	sqlDB := db.Db()
-	defer db.Db().Close()
-	ds := persistence.New(sqlDB)
+	ds := CreateDataStore()
 	pls := playlists.NewPlaylists(ds, core.NewImageUploadService())
 
 	// Parse targets from command line or file

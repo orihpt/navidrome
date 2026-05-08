@@ -22,3 +22,19 @@ func (m *MockScrobbleRepo) RecordScrobble(fileID string, submissionTime time.Tim
 	})
 	return nil
 }
+
+func (m *MockScrobbleRepo) GetRecentlyPlayed(string, int) (model.MediaFiles, error) {
+	return model.MediaFiles{}, nil
+}
+
+func (m *MockScrobbleRepo) GetCommunityRecentlyPlayed(int) (model.MediaFiles, error) {
+	return model.MediaFiles{}, nil
+}
+
+func (m *MockScrobbleRepo) GetCommunityMostPlayed(int) (model.MediaFiles, error) {
+	return model.MediaFiles{}, nil
+}
+
+func (m *MockScrobbleRepo) GetFollowingRecentlyPlayed(string, int) (model.MediaFiles, error) {
+	return model.MediaFiles{}, nil
+}

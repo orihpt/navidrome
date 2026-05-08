@@ -69,8 +69,8 @@ RUN --mount=type=bind,source=. \
     set -e
     xx-go --wrap
     export CGO_ENABLED=1
-    # -latomic is required on 32-bit arm (arm/v6, arm/v7) so SQLite's 64-bit atomics resolve.
-    go build -tags=netgo,sqlite_fts5 -ldflags="-w -s \
+    # -latomic is required on 32-bit arm (arm/v6, arm/v7) by some C dependencies.
+    go build -tags=netgo -ldflags="-w -s \
         -linkmode=external -extldflags '-latomic' \
         -X github.com/navidrome/navidrome/consts.gitSha=${GIT_SHA} \
         -X github.com/navidrome/navidrome/consts.gitTag=${GIT_TAG}" \
@@ -125,7 +125,7 @@ RUN --mount=type=bind,source=. \
         export EXT=".exe"
     fi
 
-    go build -tags=netgo,sqlite_fts5 -ldflags="${LD_EXTRA} -w -s \
+    go build -tags=netgo -ldflags="${LD_EXTRA} -w -s \
         -X github.com/navidrome/navidrome/consts.gitSha=${GIT_SHA} \
         -X github.com/navidrome/navidrome/consts.gitTag=${GIT_TAG}" \
         -o /out/navidrome${EXT} .
@@ -145,7 +145,7 @@ LABEL org.opencontainers.image.source="https://github.com/navidrome/navidrome"
 
 # Install runtime dependencies
 # - libwebp + symlinks: enables native WebP encoding via purego/dlopen
-RUN apk add -U --no-cache ffmpeg mpv sqlite libwebp libwebpdemux libwebpmux && \
+RUN apk add -U --no-cache ffmpeg mpv libwebp libwebpdemux libwebpmux && \
     for lib in libwebp libwebpdemux libwebpmux; do \
         target=$(ls /usr/lib/$lib.so.* 2>/dev/null | head -1) && \
         [ -n "$target" ] && ln -sf "$target" /usr/lib/$lib.so; \
@@ -160,10 +160,11 @@ ENV ND_DATAFOLDER=/data
 ENV ND_CONFIGFILE=/data/navidrome.toml
 ENV ND_PORT=4533
 ENV ND_ENABLEWEBPENCODING=true
+ENV MONGODB_URI=mongodb://mongodb:27017
+ENV MONGODB_DATABASE=waves_music
 RUN touch /.nddockerenv
 
 EXPOSE ${ND_PORT}
 WORKDIR /app
 
 ENTRYPOINT ["/app/navidrome"]
-

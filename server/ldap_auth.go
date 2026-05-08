@@ -90,7 +90,15 @@ func authenticateLDAP(ctx context.Context, username, password string) (*ldapUser
 	}
 
 	filter := fmt.Sprintf(firstNonEmpty(cfg.UserFilter, "(uid=%s)"), ldap.EscapeFilter(username))
-	attrs := []string{firstNonEmpty(cfg.UserNameAttribute, "uid"), firstNonEmpty(cfg.NameAttribute, "cn"), firstNonEmpty(cfg.EmailAttribute, "mail")}
+	attrs := []string{
+		firstNonEmpty(cfg.UserNameAttribute, "uid"),
+		firstNonEmpty(cfg.NameAttribute, "cn"),
+		firstNonEmpty(cfg.EmailAttribute, "mail"),
+	}
+	if cfg.DefaultDisplayNameAttribute != "" {
+		attrs = append(attrs, cfg.DefaultDisplayNameAttribute)
+	}
+
 	req := ldap.NewSearchRequest(
 		cfg.BaseDN,
 		ldap.ScopeWholeSubtree,
@@ -119,9 +127,18 @@ func authenticateLDAP(ctx context.Context, username, password string) (*ldapUser
 	if ldapUsername == "" {
 		ldapUsername = username
 	}
+
+	ldapName := ""
+	if cfg.DefaultDisplayNameAttribute != "" {
+		ldapName = entry.GetAttributeValue(cfg.DefaultDisplayNameAttribute)
+	}
+	if ldapName == "" {
+		ldapName = entry.GetAttributeValue(firstNonEmpty(cfg.NameAttribute, "cn"))
+	}
+
 	return &ldapUser{
 		username: ldapUsername,
-		name:     entry.GetAttributeValue(firstNonEmpty(cfg.NameAttribute, "cn")),
+		name:     ldapName,
 		email:    entry.GetAttributeValue(firstNonEmpty(cfg.EmailAttribute, "mail")),
 	}, nil
 }

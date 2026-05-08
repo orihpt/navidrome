@@ -11,7 +11,6 @@ import (
 const (
 	AppName = "navidrome"
 
-	DefaultDbPath                 = "navidrome.db?cache=shared&_busy_timeout=15000&_journal_mode=WAL&_foreign_keys=on&synchronous=normal"
 	InitialSetupFlagKey           = "InitialSetup"
 	FullScanAfterMigrationFlagKey = "FullScanAfterMigration"
 	LastScanErrorKey              = "LastScanError"
@@ -112,6 +111,7 @@ const (
 	EntityArtist   = "artist"
 	EntityPlaylist = "playlist"
 	EntityRadio    = "radio"
+	EntityUser     = "user"
 )
 
 const (

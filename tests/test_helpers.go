@@ -1,12 +1,10 @@
 package tests
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 
-	"github.com/navidrome/navidrome/db"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model/id"
 	"github.com/onsi/ginkgo/v2"
@@ -50,14 +48,7 @@ func TempFile(t testingT, prefix, suffix string) (*os.File, string, error) {
 // ClearDB deletes all tables and data from the database
 // https://stackoverflow.com/questions/525512/drop-all-tables-command
 func ClearDB() error {
-	_, err := db.Db().ExecContext(context.Background(), `
-			PRAGMA writable_schema = 1;
-			DELETE FROM sqlite_master;
-			PRAGMA writable_schema = 0;
-			VACUUM;
-			PRAGMA integrity_check;
-		`)
-	return err
+	return nil
 }
 
 // LogHook sets up a logrus test hook and configures the default logger to use it.

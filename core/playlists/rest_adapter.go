@@ -58,7 +58,7 @@ func (s *playlists) TracksRepository(ctx context.Context, playlistId string, ref
 }
 
 // savePlaylist creates a new playlist, assigning the owner from context.
-// Only Name, Comment, Public, and Rules are user-settable via the REST API.
+// Only Name, Comment, Public, Visibility, and Rules are user-settable via the REST API.
 func (s *playlists) savePlaylist(ctx context.Context, pls *model.Playlist) (string, error) {
 	usr, _ := request.UserFrom(ctx)
 	pls.OwnerID = usr.ID
@@ -99,5 +99,9 @@ func (s *playlists) updatePlaylistEntity(ctx context.Context, id string, entity 
 	}
 	// Apply smart playlist rules update
 	current.Rules = entity.Rules
+	if entity.Visibility != "" {
+		current.Visibility = entity.Visibility
+		current.NormalizeVisibility()
+	}
 	return s.updateMetadata(ctx, s.ds, current, &entity.Name, &entity.Comment, &entity.Public)
 }

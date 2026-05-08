@@ -64,6 +64,7 @@ func (api *Router) routes() http.Handler {
 		r.Use(server.Authenticator(api.ds))
 		r.Use(server.JWTRefresher)
 		r.Use(server.UpdateLastAccessMiddleware(api.ds))
+		api.addSocialRoutes(r)
 		api.RX(r, "/user", api.users.NewRepository, true)
 		r.Route("/user/sync", func(r chi.Router) {
 			r.Get("/", api.getUserSync)

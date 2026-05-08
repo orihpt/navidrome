@@ -14,7 +14,6 @@ func main() {
 	// the required build tags when compiling the project.
 	// To avoid these kind of errors, you should use `make build` to compile the project.
 	_ = buildtags.NETGO
-	_ = buildtags.SQLITE_FTS5
 
 	cmd.Execute()
 }

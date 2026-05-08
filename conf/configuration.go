@@ -30,7 +30,6 @@ type configOptions struct {
 	MusicFolder                     string
 	DataFolder                      string
 	CacheFolder                     string
-	DbPath                          string
 	LogLevel                        string
 	LogFile                         string
 	SessionTimeout                  time.Duration
@@ -117,6 +116,8 @@ type configOptions struct {
 	Tags                            map[string]TagConf `json:",omitempty"`
 	Agents                          string
 	WavesMusicRecommendationURL     string
+	MongoDBURI                      string
+	MongoDBDatabase                 string
 
 	// DevFlags. These are used to enable/disable debugging and incomplete features
 	DevLogLevels                      map[string]string `json:",omitempty"`
@@ -259,18 +260,19 @@ type extAuthOptions struct {
 }
 
 type ldapOptions struct {
-	Enabled            bool
-	URL                string
-	BindDN             string
-	BindPassword       string
-	BaseDN             string
-	UserFilter         string
-	UserNameAttribute  string
-	NameAttribute      string
-	EmailAttribute     string
-	AutoCreateUsers    bool
-	StartTLS           bool
-	InsecureSkipVerify bool
+	Enabled                     bool
+	URL                         string
+	BindDN                      string
+	BindPassword                string
+	BaseDN                      string
+	UserFilter                  string
+	UserNameAttribute           string
+	NameAttribute               string
+	EmailAttribute              string
+	DefaultDisplayNameAttribute string
+	AutoCreateUsers             bool
+	StartTLS                    bool
+	InsecureSkipVerify          bool
 }
 
 type searchOptions struct {
@@ -322,6 +324,18 @@ func Load(noConfigDump bool) {
 	if Server.WavesMusicRecommendationURL == "" {
 		Server.WavesMusicRecommendationURL = os.Getenv("WAVES_MUSIC_RECOMMENDATION_URL")
 	}
+	if Server.MongoDBURI == "" {
+		Server.MongoDBURI = os.Getenv("MONGODB_URI")
+	}
+	if Server.MongoDBDatabase == "" {
+		Server.MongoDBDatabase = os.Getenv("MONGODB_DATABASE")
+	}
+	if Server.MongoDBURI == "" {
+		logFatal("MONGODB_URI is required. Waves Music uses MongoDB as the only Navidrome database.")
+	}
+	if Server.MongoDBDatabase == "" {
+		logFatal("MONGODB_DATABASE is required. Waves Music uses MongoDB as the only Navidrome database.")
+	}
 
 	err = os.MkdirAll(Server.DataFolder, os.ModePerm)
 	if err != nil {
@@ -352,10 +366,6 @@ func Load(noConfigDump bool) {
 	}
 
 	Server.ConfigFile = viper.GetViper().ConfigFileUsed()
-	if Server.DbPath == "" {
-		Server.DbPath = filepath.Join(Server.DataFolder, consts.DefaultDbPath)
-	}
-
 	if Server.Backup.Path != "" {
 		err = os.MkdirAll(Server.Backup.Path, os.ModePerm)
 		if err != nil {
@@ -778,7 +788,7 @@ func setViperDefaults() {
 	viper.SetDefault("defaultshareexpiration", 8760*time.Hour)
 	viper.SetDefault("defaultdownloadableshare", false)
 	viper.SetDefault("gatrackingid", "")
-	viper.SetDefault("enableinsightscollector", true)
+	viper.SetDefault("enableinsightscollector", false)
 	viper.SetDefault("enablelogredacting", true)
 	viper.SetDefault("authrequestlimit", 5)
 	viper.SetDefault("authwindowlength", 20*time.Second)
@@ -795,6 +805,7 @@ func setViperDefaults() {
 	viper.SetDefault("ldap.usernameattribute", "uid")
 	viper.SetDefault("ldap.nameattribute", "cn")
 	viper.SetDefault("ldap.emailattribute", "mail")
+	viper.SetDefault("ldap.defaultdisplaynameattribute", "")
 	viper.SetDefault("ldap.autocreateusers", true)
 	viper.SetDefault("ldap.starttls", false)
 	viper.SetDefault("ldap.insecureskipverify", false)
@@ -822,20 +833,22 @@ func setViperDefaults() {
 	viper.SetDefault("subsonic.enableaveragerating", true)
 	viper.SetDefault("subsonic.legacyclients", "DSub")
 	viper.SetDefault("subsonic.minimalclients", "SubMusic")
-	viper.SetDefault("agents", "deezer,lastfm,listenbrainz")
-	viper.SetDefault("lastfm.enabled", true)
+	viper.SetDefault("agents", "")
+	viper.SetDefault("lastfm.enabled", false)
 	viper.SetDefault("lastfm.language", consts.DefaultInfoLanguage)
 	viper.SetDefault("lastfm.apikey", "")
 	viper.SetDefault("lastfm.secret", "")
 	viper.SetDefault("lastfm.scrobblefirstartistonly", false)
-	viper.SetDefault("deezer.enabled", true)
+	viper.SetDefault("deezer.enabled", false)
 	viper.SetDefault("deezer.language", consts.DefaultInfoLanguage)
-	viper.SetDefault("listenbrainz.enabled", true)
+	viper.SetDefault("listenbrainz.enabled", false)
 	viper.SetDefault("listenbrainz.baseurl", consts.DefaultListenBrainzBaseURL)
 	viper.SetDefault("listenbrainz.artistalgorithm", consts.DefaultListenBrainzArtistAlgorithm)
 	viper.SetDefault("listenbrainz.trackalgorithm", consts.DefaultListenBrainzTrackAlgorithm)
 	viper.SetDefault("enablescrobblehistory", true)
 	viper.SetDefault("wavesmusicrecommendationurl", "")
+	viper.SetDefault("mongodburi", "")
+	viper.SetDefault("mongodbdatabase", "")
 	viper.SetDefault("wavesmusicaboutpath", "")
 	viper.SetDefault("httpheaders.frameoptions", "DENY")
 	viper.SetDefault("backup.path", "")

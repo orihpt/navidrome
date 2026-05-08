@@ -13,7 +13,6 @@ import (
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/core/artwork"
 	"github.com/navidrome/navidrome/core/playlists"
-	"github.com/navidrome/navidrome/db"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/utils/run"
@@ -283,8 +282,7 @@ func (s *scannerImpl) runRefreshStats(ctx context.Context, state *scanState) fun
 func (s *scannerImpl) runOptimize(ctx context.Context) func() error {
 	return func() error {
 		start := time.Now()
-		db.Optimize(ctx)
-		log.Debug(ctx, "Scanner: Optimized DB", "elapsed", time.Since(start))
+		log.Debug(ctx, "Scanner: MongoDB optimize step skipped", "elapsed", time.Since(start))
 		return nil
 	}
 }

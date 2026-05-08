@@ -16,6 +16,7 @@ import (
 func buildUserResponse(user model.User) responses.User {
 	userResponse := responses.User{
 		Username:          user.UserName,
+		Name:              user.Name,
 		AdminRole:         user.IsAdmin,
 		Email:             user.Email,
 		StreamRole:        true,
@@ -57,8 +58,15 @@ func (api *Router) GetUsers(r *http.Request) (*responses.Subsonic, error) {
 		return nil, newError(responses.ErrorGeneric, "Internal error")
 	}
 
-	user := buildUserResponse(loggedUser)
+	users := model.Users{loggedUser}
+	if api.ds != nil {
+		allUsers, err := api.ds.User(r.Context()).GetAll()
+		if err != nil {
+			return nil, err
+		}
+		users = allUsers
+	}
 	response := newResponse()
-	response.Users = &responses.Users{User: []responses.User{user}}
+	response.Users = &responses.Users{User: slice.Map(users, buildUserResponse)}
 	return response, nil
 }

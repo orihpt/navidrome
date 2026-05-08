@@ -422,6 +422,7 @@ type NowPlaying struct {
 
 type User struct {
 	Username            string  `xml:"username,attr"               json:"username"`
+	Name                string  `xml:"name,attr,omitempty"         json:"name,omitempty"`
 	Email               string  `xml:"email,attr,omitempty"        json:"email,omitempty"`
 	ScrobblingEnabled   bool    `xml:"scrobblingEnabled,attr"      json:"scrobblingEnabled"`
 	MaxBitRate          int32   `xml:"maxBitRate,attr,omitempty"   json:"maxBitRate,omitempty"`

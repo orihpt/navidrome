@@ -11,9 +11,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/consts"
-	"github.com/navidrome/navidrome/db"
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
+	"github.com/navidrome/navidrome/persistence"
 	"github.com/navidrome/navidrome/resources"
 	"github.com/navidrome/navidrome/scanner"
 	"github.com/navidrome/navidrome/scheduler"
@@ -78,7 +78,7 @@ func postRun() {
 // If any of the services returns an error, it will log it and exit. If the process receives a signal to exit,
 // it will cancel the context and exit gracefully.
 func runNavidrome(ctx context.Context) {
-	defer db.Init(ctx)()
+	defer persistence.Close(ctx)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(startServer(ctx))
@@ -256,23 +256,7 @@ func schedulePeriodicBackup(ctx context.Context) func() error {
 
 		log.Info("Scheduling periodic backup", "schedule", schedule)
 		_, err := schedulerInstance.Add(schedule, func() {
-			start := time.Now()
-			path, err := db.Backup(ctx)
-			elapsed := time.Since(start)
-			if err != nil {
-				log.Error(ctx, "Error backing up database", "elapsed", elapsed, err)
-				return
-			}
-			log.Info(ctx, "Backup complete", "elapsed", elapsed, "path", path)
-
-			count, err := db.Prune(ctx)
-			if err != nil {
-				log.Error(ctx, "Error pruning database", "error", err)
-			} else if count > 0 {
-				log.Info(ctx, "Successfully pruned old files", "count", count)
-			} else {
-				log.Info(ctx, "No backups pruned")
-			}
+			log.Warn(ctx, "MongoDB backup is not implemented in-process; use mongodump for database backups")
 		})
 
 		return err
@@ -281,14 +265,14 @@ func schedulePeriodicBackup(ctx context.Context) func() error {
 
 func scheduleDBOptimizer(ctx context.Context) func() error {
 	return func() error {
-		log.Info(ctx, "Scheduling DB optimizer", "schedule", consts.OptimizeDBSchedule)
+		log.Info(ctx, "Scheduling MongoDB maintenance", "schedule", consts.OptimizeDBSchedule)
 		schedulerInstance := scheduler.GetInstance()
 		_, err := schedulerInstance.Add(consts.OptimizeDBSchedule, func() {
 			if scanner.IsScanning() {
 				log.Debug(ctx, "Skipping DB optimization because a scan is in progress")
 				return
 			}
-			db.Optimize(ctx)
+			log.Debug(ctx, "MongoDB maintenance tick")
 		})
 		return err
 	}

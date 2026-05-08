@@ -3,10 +3,17 @@ package model
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/navidrome/navidrome/consts"
 	"github.com/navidrome/navidrome/model/criteria"
+)
+
+const (
+	PlaylistVisibilityPrivate  = "private"
+	PlaylistVisibilityPublic   = "public"
+	PlaylistVisibilityFeatured = "featured"
 )
 
 type Playlist struct {
@@ -19,6 +26,7 @@ type Playlist struct {
 	OwnerName        string         `structs:"-" json:"ownerName"`
 	OwnerID          string         `structs:"owner_id" json:"ownerId"`
 	Public           bool           `structs:"public" json:"public"`
+	Visibility       string         `structs:"visibility" json:"visibility"`
 	CuratorPinned    bool           `structs:"curator_pinned" json:"curatorPinned"`
 	Tracks           PlaylistTracks `structs:"-" json:"tracks,omitempty"`
 	Path             string         `structs:"path" json:"path"`
@@ -31,6 +39,21 @@ type Playlist struct {
 	// SmartPlaylist attributes
 	Rules       *criteria.Criteria `structs:"rules" json:"rules"`
 	EvaluatedAt *time.Time         `structs:"evaluated_at" json:"evaluatedAt"`
+}
+
+func (pls *Playlist) NormalizeVisibility() {
+	visibility := strings.ToLower(strings.TrimSpace(pls.Visibility))
+	switch visibility {
+	case PlaylistVisibilityPrivate, PlaylistVisibilityPublic, PlaylistVisibilityFeatured:
+		pls.Visibility = visibility
+	default:
+		if pls.Public {
+			pls.Visibility = PlaylistVisibilityFeatured
+		} else {
+			pls.Visibility = PlaylistVisibilityPrivate
+		}
+	}
+	pls.Public = pls.Visibility == PlaylistVisibilityPublic || pls.Visibility == PlaylistVisibilityFeatured
 }
 
 func (pls Playlist) IsSmartPlaylist() bool {
