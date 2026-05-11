@@ -97,6 +97,7 @@ func (api *Router) routes() http.Handler {
 			api.addPluginRoute(r)
 			api.RX(r, "/library", api.libs.NewRepository, true)
 		})
+		r.Get("/library/recently_added", api.getRecentlyAdded)
 	})
 
 	return r
@@ -257,6 +258,28 @@ func (api *Router) addInsightsRoute(r chi.Router) {
 			_, _ = w.Write([]byte(`{"id":"insights_status", "lastRun":"disabled", "success":false}`))
 		}
 	})
+}
+
+func (api *Router) getRecentlyAdded(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if val, err := strconv.Atoi(l); err == nil && val > 0 {
+			limit = val
+		}
+	}
+
+	tracks, err := api.ds.MediaFile(r.Context()).GetAll(model.QueryOptions{
+		Max:   limit,
+		Sort:  "created_at",
+		Order: "desc",
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tracks)
 }
 
 // Middleware to ensure only admin users can access endpoints

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 
 	. "github.com/Masterminds/squirrel"
@@ -20,7 +21,9 @@ func (api *Router) addSocialRoutes(r chi.Router) {
 	r.Get("/community/featured", api.getCommunityFeatured)
 	r.Get("/user/me", api.getCurrentUser)
 	r.Get("/user/search", api.searchUsers)
+	r.Get("/community/popular_playlists", api.getPopularPlaylists)
 	r.Post("/user/avatar", api.uploadUserAvatar)
+	r.Get("/user/{id}/profile", api.getUserProfile)
 	r.Get("/user/{id}/avatar", api.getUserAvatar)
 	r.Post("/user/{id}/follow", api.followUser)
 	r.Delete("/user/{id}/follow", api.unfollowUser)
@@ -51,6 +54,94 @@ func (api *Router) getUserAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, user.AvatarPath())
+}
+
+func (api *Router) getUserProfile(w http.ResponseWriter, r *http.Request) {
+	userIDOrName := chi.URLParam(r, "id")
+	users := api.ds.User(r.Context())
+	user, err := users.Get(userIDOrName)
+	if err != nil {
+		user, err = users.FindByUsername(userIDOrName)
+	}
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	playlists, err := api.ds.Playlist(r.Context()).GetAll(model.QueryOptions{
+		Sort:  "updated_at",
+		Order: "desc",
+		Filters: And{
+			Eq{"playlist.owner_id": user.ID},
+			NotEq{"playlist.visibility": model.PlaylistVisibilityPrivate},
+		},
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	recentTracks, err := api.ds.Scrobble(r.Context()).GetRecentlyPlayed(user.ID, 100)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type artistSummary struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		PlayCount int    `json:"playCount"`
+	}
+	artistsByID := map[string]*artistSummary{}
+	for _, track := range recentTracks {
+		artistID := track.ArtistID
+		artistName := track.Artist
+		if artistID == "" {
+			artistID = artistName
+		}
+		if artistID == "" && artistName == "" {
+			continue
+		}
+		if artistName == "" {
+			artistName = artistID
+		}
+		artist, ok := artistsByID[artistID]
+		if !ok {
+			artist = &artistSummary{ID: artistID, Name: artistName}
+			artistsByID[artistID] = artist
+		}
+		artist.PlayCount++
+	}
+	listeningArtists := make([]artistSummary, 0, len(artistsByID))
+	for _, artist := range artistsByID {
+		listeningArtists = append(listeningArtists, *artist)
+	}
+	sort.Slice(listeningArtists, func(i, j int) bool {
+		if listeningArtists[i].PlayCount == listeningArtists[j].PlayCount {
+			return listeningArtists[i].Name < listeningArtists[j].Name
+		}
+		return listeningArtists[i].PlayCount > listeningArtists[j].PlayCount
+	})
+	if len(listeningArtists) > 12 {
+		listeningArtists = listeningArtists[:12]
+	}
+
+	writeJSON(w, struct {
+		ID               string          `json:"id"`
+		UserName         string          `json:"userName"`
+		DisplayName      string          `json:"display_name"`
+		AvatarFile       string          `json:"avatarFile,omitempty"`
+		About            string          `json:"about,omitempty"`
+		Playlists        model.Playlists `json:"playlists"`
+		ListeningArtists []artistSummary `json:"listeningArtists"`
+	}{
+		ID:               user.ID,
+		UserName:         user.UserName,
+		DisplayName:      user.Name,
+		AvatarFile:       user.AvatarFile,
+		About:            user.About,
+		Playlists:        playlists,
+		ListeningArtists: listeningArtists,
+	})
 }
 
 func (api *Router) uploadUserAvatar(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +203,23 @@ func (api *Router) getCommunityFeatured(w http.ResponseWriter, r *http.Request) 
 		Sort:    "updated_at",
 		Order:   "desc",
 		Filters: Eq{"playlist.visibility": model.PlaylistVisibilityFeatured},
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, playlists)
+}
+
+func (api *Router) getPopularPlaylists(w http.ResponseWriter, r *http.Request) {
+	playlists, err := api.ds.Playlist(r.Context()).GetAll(model.QueryOptions{
+		Max:   intParam(r, "limit", 24),
+		Sort:  "play_count",
+		Order: "desc",
+		Filters: Or{
+			Eq{"playlist.visibility": model.PlaylistVisibilityPublic},
+			Eq{"playlist.visibility": model.PlaylistVisibilityFeatured},
+		},
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

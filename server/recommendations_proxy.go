@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/navidrome/navidrome/conf"
 	"github.com/navidrome/navidrome/consts"
@@ -37,7 +38,21 @@ func NewRecommendationsProxy(rawURL string) http.Handler {
 		log.Warn(r.Context(), "Recommendation proxy request failed", "url", rawURL, err)
 		http.Error(w, "Recommendation service unavailable", http.StatusBadGateway)
 	}
-	return proxy
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/status") {
+			client := &http.Client{Timeout: 2 * time.Second}
+			resp, err := client.Head(rawURL)
+			if err != nil || (resp != nil && resp.StatusCode >= 500) {
+				http.Error(w, "Recommendation service unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	})
 }
 
 func stripRecommendationMount(requestPath, mountPath string) string {

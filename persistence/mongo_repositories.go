@@ -130,6 +130,8 @@ func mongoFilter(expr squirrel.Sqlizer) (bson.M, error) {
 	switch f := expr.(type) {
 	case nil:
 		return bson.M{}, nil
+	case bsonFilter:
+		return bson.M(f), nil
 	case squirrel.Eq:
 		out := bson.M{}
 		for k, v := range f {
@@ -183,6 +185,12 @@ func mongoFilter(expr squirrel.Sqlizer) (bson.M, error) {
 	default:
 		return nil, fmt.Errorf("unsupported Mongo query filter %T", expr)
 	}
+}
+
+type bsonFilter bson.M
+
+func (f bsonFilter) ToSql() (string, []any, error) {
+	return "", nil, fmt.Errorf("bsonFilter cannot be converted to SQL")
 }
 
 func mongoField(field string) string {
@@ -338,8 +346,17 @@ func (*mongoAlbumRepository) IncPlayCount(string, time.Time) error           { r
 func (*mongoAlbumRepository) SetStar(bool, ...string) error                  { return nil }
 func (*mongoAlbumRepository) SetRating(int, string) error                    { return nil }
 func (*mongoAlbumRepository) ReassignAnnotation(string, string) error        { return nil }
-func (*mongoAlbumRepository) Search(string, ...model.QueryOptions) (model.Albums, error) {
-	return nil, nil
+func (r *mongoAlbumRepository) Search(query string, opts ...model.QueryOptions) (model.Albums, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return r.GetAll(opts...)
+	}
+	o := model.QueryOptions{}
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	o.Filters = bsonFilter{"name": bson.M{"$regex": query, "$options": "i"}}
+	return r.GetAll(o)
 }
 
 type mongoArtistRepository struct {
@@ -449,17 +466,119 @@ func (r *mongoArtistRepository) distinctArtistIDs(field string) ([]string, error
 	}
 	return ids, nil
 }
-func (*mongoArtistRepository) GetIndex(bool, []int, ...model.Role) (model.ArtistIndexes, error) {
-	return nil, nil
+func (r *mongoArtistRepository) GetIndex(includeMissing bool, libraryIds []int, roles ...model.Role) (model.ArtistIndexes, error) {
+	opts := model.QueryOptions{Sort: "name"}
+	filter := bson.M{}
+	if !includeMissing {
+		filter["missing"] = false
+	}
+	if len(libraryIds) > 0 {
+		filter["libraryid"] = bson.M{"$in": libraryIds}
+	}
+	// Note: Role filtering for GetIndex is simplified here
+	opts.Filters = bsonFilter(filter)
+
+	artists, err := r.GetAll(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	indexes := model.ArtistIndexes{}
+	currentIndex := model.ArtistIndex{}
+	for _, a := range artists {
+		firstChar := "#"
+		if len(a.Name) > 0 {
+			// Basic first character grouping
+			firstChar = strings.ToUpper(a.Name[:1])
+			if firstChar[0] < 'A' || firstChar[0] > 'Z' {
+				firstChar = "#"
+			}
+		}
+		if currentIndex.ID != firstChar {
+			if currentIndex.ID != "" {
+				indexes = append(indexes, currentIndex)
+			}
+			currentIndex = model.ArtistIndex{ID: firstChar}
+		}
+		currentIndex.Artists = append(currentIndex.Artists, a)
+	}
+	if currentIndex.ID != "" {
+		indexes = append(indexes, currentIndex)
+	}
+	return indexes, nil
 }
-func (*mongoArtistRepository) RefreshPlayCounts() (int64, error)       { return 0, nil }
-func (*mongoArtistRepository) RefreshStats(bool) (int64, error)        { return 0, nil }
+func (*mongoArtistRepository) RefreshPlayCounts() (int64, error) { return 0, nil }
+func (r *mongoArtistRepository) RefreshStats(allArtists bool) (int64, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"missing": false}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":        "$artistid",
+			"songCount":  bson.M{"$sum": 1},
+			"albumCount": bson.M{"$addToSet": "$albumid"},
+			"size":       bson.M{"$sum": "$size"},
+		}}},
+	}
+
+	cursor, err := r.store.collection("media_files").Aggregate(r.ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(r.ctx)
+
+	var count int64
+	for cursor.Next(r.ctx) {
+		var result struct {
+			ID         string   `bson:"_id"`
+			SongCount  int      `bson:"songCount"`
+			AlbumCount []string `bson:"albumCount"`
+			Size       int64    `bson:"size"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return count, err
+		}
+
+		if result.ID == "" {
+			continue
+		}
+
+		stats := map[model.Role]model.ArtistStats{
+			model.RoleAlbumArtist: {
+				SongCount:  result.SongCount,
+				AlbumCount: len(result.AlbumCount),
+				Size:       result.Size,
+			},
+		}
+
+		_, err := r.c().UpdateOne(r.ctx, bson.M{"id": result.ID}, bson.M{
+			"$set": bson.M{
+				"stats":      stats,
+				"songcount":  result.SongCount,
+				"albumcount": len(result.AlbumCount),
+				"size":       result.Size,
+				"updatedat":  time.Now(),
+			},
+		})
+		if err == nil {
+			count++
+		}
+	}
+	return count, cursor.Err()
+}
 func (*mongoArtistRepository) IncPlayCount(string, time.Time) error    { return nil }
 func (*mongoArtistRepository) SetStar(bool, ...string) error           { return nil }
 func (*mongoArtistRepository) SetRating(int, string) error             { return nil }
 func (*mongoArtistRepository) ReassignAnnotation(string, string) error { return nil }
-func (*mongoArtistRepository) Search(string, ...model.QueryOptions) (model.Artists, error) {
-	return nil, nil
+func (r *mongoArtistRepository) Search(query string, opts ...model.QueryOptions) (model.Artists, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return r.GetAll(opts...)
+	}
+	o := model.QueryOptions{}
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	o.Filters = bsonFilter{"name": bson.M{"$regex": query, "$options": "i"}}
+	return r.GetAll(o)
 }
 
 type mongoMediaFileRepository struct {
@@ -631,40 +750,268 @@ type mongoPlaylistRepository struct {
 	store *MongoStore
 }
 
-func (*mongoPlaylistRepository) CountAll(...model.QueryOptions) (int64, error) { return 0, nil }
-func (*mongoPlaylistRepository) Exists(string) (bool, error)                   { return false, nil }
-func (*mongoPlaylistRepository) Put(*model.Playlist) error                     { return nil }
-func (*mongoPlaylistRepository) Get(string) (*model.Playlist, error)           { return nil, model.ErrNotFound }
-func (*mongoPlaylistRepository) GetWithTracks(string, bool, bool) (*model.Playlist, error) {
-	return nil, model.ErrNotFound
+func (r *mongoPlaylistRepository) c() *mongo.Collection { return r.store.collection("playlists") }
+func (r *mongoPlaylistRepository) CountAll(opts ...model.QueryOptions) (int64, error) {
+	return mongoCount(r.ctx, r.c(), opts...)
 }
-func (*mongoPlaylistRepository) GetAll(...model.QueryOptions) (model.Playlists, error) {
-	return nil, nil
+func (r *mongoPlaylistRepository) Exists(id string) (bool, error) {
+	return mongoExists(r.ctx, r.c(), id)
 }
-func (*mongoPlaylistRepository) FindByPath(string) (*model.Playlist, error) {
-	return nil, model.ErrNotFound
+func (r *mongoPlaylistRepository) Put(pls *model.Playlist) error {
+	if pls.ID == "" {
+		pls.ID = id.NewRandom()
+	}
+	if pls.CreatedAt.IsZero() {
+		pls.CreatedAt = time.Now()
+	}
+	pls.UpdatedAt = time.Now()
+	pls.NormalizeVisibility()
+	doc := *pls
+	doc.Tracks = nil
+	if err := mongoReplace(r.ctx, r.c(), pls.ID, &doc); err != nil {
+		return err
+	}
+	if len(pls.Tracks) == 0 {
+		return nil
+	}
+	tracks := r.store.collection("playlist_tracks")
+	if _, err := tracks.DeleteMany(r.ctx, bson.M{"playlistid": pls.ID}); err != nil {
+		return err
+	}
+	docs := make([]any, 0, len(pls.Tracks))
+	for i, track := range pls.Tracks {
+		if track.MediaFileID == "" {
+			track.MediaFileID = track.MediaFile.ID
+		}
+		docs = append(docs, bson.M{
+			"id":          fmt.Sprintf("%d", i+1),
+			"playlistid":  pls.ID,
+			"mediafileid": track.MediaFileID,
+		})
+	}
+	_, err := tracks.InsertMany(r.ctx, docs)
+	return err
 }
-func (*mongoPlaylistRepository) Delete(string) error { return nil }
-func (*mongoPlaylistRepository) Tracks(string, bool) model.PlaylistTrackRepository {
-	return &mongoPlaylistTrackRepository{}
+func (r *mongoPlaylistRepository) Get(id string) (*model.Playlist, error) {
+	return mongoOne[model.Playlist](r.ctx, r.c(), bson.M{"id": id})
 }
-func (*mongoPlaylistRepository) GetPlaylists(string) (model.Playlists, error) { return nil, nil }
+func (r *mongoPlaylistRepository) GetWithTracks(id string, _ bool, includeMissing bool) (*model.Playlist, error) {
+	pls, err := r.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	filter := squirrel.Eq{"playlist_id": id}
+	if includeMissing {
+		filter = squirrel.Eq{"playlist_id": id}
+	}
+	tracks, err := r.Tracks(id, false).GetAll(model.QueryOptions{Sort: "id", Filters: filter})
+	if err != nil {
+		return nil, err
+	}
+	pls.SetTracks(tracks)
+	return pls, nil
+}
+func (r *mongoPlaylistRepository) GetAll(opts ...model.QueryOptions) (model.Playlists, error) {
+	filter, findOpts, err := mongoQuery(opts...)
+	if err != nil {
+		return nil, err
+	}
+	playlists, err := mongoAll[model.Playlist, model.Playlists](r.ctx, r.c(), filter, findOpts)
+	if err != nil {
+		return nil, err
+	}
+	for i := range playlists {
+		playlists[i].NormalizeVisibility()
+	}
+	return playlists, nil
+}
+func (r *mongoPlaylistRepository) FindByPath(path string) (*model.Playlist, error) {
+	return mongoOne[model.Playlist](r.ctx, r.c(), bson.M{"path": path})
+}
+func (r *mongoPlaylistRepository) Delete(id string) error {
+	if _, err := r.store.collection("playlist_tracks").DeleteMany(r.ctx, bson.M{"playlistid": id}); err != nil {
+		return err
+	}
+	_, err := r.c().DeleteOne(r.ctx, bson.M{"id": id})
+	return err
+}
+func (r *mongoPlaylistRepository) IncPlayCount(id string) error {
+	_, err := r.c().UpdateOne(r.ctx, bson.M{"id": id}, bson.M{"$inc": bson.M{"playcount": 1}})
+	return err
+}
+func (r *mongoPlaylistRepository) Tracks(playlistID string, _ bool) model.PlaylistTrackRepository {
+	return &mongoPlaylistTrackRepository{ctx: r.ctx, store: r.store, playlistID: playlistID}
+}
+func (r *mongoPlaylistRepository) GetPlaylists(mediaFileID string) (model.Playlists, error) {
+	ids := r.store.collection("playlist_tracks").Distinct(r.ctx, "playlistid", bson.M{"mediafileid": mediaFileID})
+	if err := ids.Err(); err != nil {
+		return nil, err
+	}
+	var playlistIDs []string
+	if err := ids.Decode(&playlistIDs); err != nil {
+		return nil, err
+	}
+	if len(playlistIDs) == 0 {
+		return model.Playlists{}, nil
+	}
+	return r.GetAll(model.QueryOptions{Filters: bsonFilter{"id": bson.M{"$in": playlistIDs}}})
+}
+func (r *mongoPlaylistRepository) Count(options ...rest.QueryOptions) (int64, error) {
+	return r.CountAll(restToModelOptions(options...)...)
+}
+func (r *mongoPlaylistRepository) Read(id string) (any, error) { return r.Get(id) }
+func (r *mongoPlaylistRepository) ReadAll(options ...rest.QueryOptions) (any, error) {
+	return r.GetAll(restToModelOptions(options...)...)
+}
+func (*mongoPlaylistRepository) EntityName() string { return "playlist" }
+func (*mongoPlaylistRepository) NewInstance() any   { return &model.Playlist{} }
+func (r *mongoPlaylistRepository) Save(entity any) (string, error) {
+	pls := entity.(*model.Playlist)
+	pls.ID = ""
+	if err := r.Put(pls); err != nil {
+		return "", err
+	}
+	return pls.ID, nil
+}
+func (r *mongoPlaylistRepository) Update(id string, entity any, _ ...string) error {
+	pls := entity.(*model.Playlist)
+	pls.ID = id
+	return r.Put(pls)
+}
 
-type mongoPlaylistTrackRepository struct{ mongoResourceRepository }
+type mongoPlaylistTrackRepository struct {
+	mongoResourceRepository
+	ctx        context.Context
+	store      *MongoStore
+	playlistID string
+}
 
-func (*mongoPlaylistTrackRepository) GetAll(...model.QueryOptions) (model.PlaylistTracks, error) {
-	return nil, nil
+func (r *mongoPlaylistTrackRepository) c() *mongo.Collection {
+	return r.store.collection("playlist_tracks")
 }
-func (*mongoPlaylistTrackRepository) GetAlbumIDs(...model.QueryOptions) ([]string, error) {
-	return nil, nil
+func (r *mongoPlaylistTrackRepository) GetAll(opts ...model.QueryOptions) (model.PlaylistTracks, error) {
+	filter := bson.M{"playlistid": r.playlistID}
+	if len(opts) > 0 && opts[0].Filters != nil {
+		extra, err := mongoFilter(opts[0].Filters)
+		if err != nil {
+			return nil, err
+		}
+		filter = bson.M{"$and": []bson.M{filter, extra}}
+	}
+	findOpts := options.Find().SetSort(bson.D{{Key: "id", Value: 1}})
+	cur, err := r.c().Find(r.ctx, filter, findOpts)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+	var tracks model.PlaylistTracks
+	var mediaIDs []string
+	for cur.Next(r.ctx) {
+		var track model.PlaylistTrack
+		if err := cur.Decode(&track); err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, track)
+		mediaIDs = append(mediaIDs, track.MediaFileID)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	if len(mediaIDs) == 0 {
+		return tracks, nil
+	}
+	mfs, err := (&mongoMediaFileRepository{ctx: r.ctx, store: r.store}).GetAll(model.QueryOptions{Filters: bsonFilter{"id": bson.M{"$in": mediaIDs}}})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]model.MediaFile, len(mfs))
+	for _, mf := range mfs {
+		byID[mf.ID] = mf
+	}
+	for i := range tracks {
+		if mf, ok := byID[tracks[i].MediaFileID]; ok {
+			tracks[i].MediaFile = mf
+		}
+	}
+	return tracks, nil
 }
-func (*mongoPlaylistTrackRepository) Add([]string) (int, error)            { return 0, nil }
-func (*mongoPlaylistTrackRepository) AddAlbums([]string) (int, error)      { return 0, nil }
-func (*mongoPlaylistTrackRepository) AddArtists([]string) (int, error)     { return 0, nil }
+func (r *mongoPlaylistTrackRepository) GetAlbumIDs(opts ...model.QueryOptions) ([]string, error) {
+	tracks, err := r.GetAll(opts...)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	var ids []string
+	for _, track := range tracks {
+		if track.AlbumID == "" {
+			continue
+		}
+		if _, ok := seen[track.AlbumID]; ok {
+			continue
+		}
+		seen[track.AlbumID] = struct{}{}
+		ids = append(ids, track.AlbumID)
+	}
+	return ids, nil
+}
+func (r *mongoPlaylistTrackRepository) Add(mediaFileIDs []string) (int, error) {
+	if len(mediaFileIDs) == 0 {
+		return 0, nil
+	}
+	count, err := r.c().CountDocuments(r.ctx, bson.M{"playlistid": r.playlistID})
+	if err != nil {
+		return 0, err
+	}
+	docs := make([]any, 0, len(mediaFileIDs))
+	for i, mediaFileID := range mediaFileIDs {
+		pos := count + int64(i) + 1
+		docs = append(docs, bson.M{
+			"id":          fmt.Sprintf("%d", pos),
+			"playlistid":  r.playlistID,
+			"mediafileid": mediaFileID,
+		})
+	}
+	_, err = r.c().InsertMany(r.ctx, docs)
+	if err != nil {
+		return 0, err
+	}
+	return len(docs), nil
+}
+func (r *mongoPlaylistTrackRepository) AddAlbums(albumIDs []string) (int, error) {
+	mfs, err := (&mongoMediaFileRepository{ctx: r.ctx, store: r.store}).GetAll(model.QueryOptions{Filters: bsonFilter{"albumid": bson.M{"$in": albumIDs}}})
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]string, 0, len(mfs))
+	for _, mf := range mfs {
+		ids = append(ids, mf.ID)
+	}
+	return r.Add(ids)
+}
+func (r *mongoPlaylistTrackRepository) AddArtists(artistIDs []string) (int, error) {
+	mfs, err := (&mongoMediaFileRepository{ctx: r.ctx, store: r.store}).GetAll(model.QueryOptions{Filters: bsonFilter{"artistid": bson.M{"$in": artistIDs}}})
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]string, 0, len(mfs))
+	for _, mf := range mfs {
+		ids = append(ids, mf.ID)
+	}
+	return r.Add(ids)
+}
 func (*mongoPlaylistTrackRepository) AddDiscs([]model.DiscID) (int, error) { return 0, nil }
-func (*mongoPlaylistTrackRepository) Delete(...string) error               { return nil }
-func (*mongoPlaylistTrackRepository) DeleteAll() error                     { return nil }
-func (*mongoPlaylistTrackRepository) Reorder(int, int) error               { return nil }
+func (r *mongoPlaylistTrackRepository) Delete(ids ...string) error {
+	filter := bson.M{"playlistid": r.playlistID}
+	if len(ids) > 0 {
+		filter["id"] = bson.M{"$in": ids}
+	}
+	_, err := r.c().DeleteMany(r.ctx, filter)
+	return err
+}
+func (r *mongoPlaylistTrackRepository) DeleteAll() error { return r.Delete() }
+func (*mongoPlaylistTrackRepository) Reorder(int, int) error {
+	return notImplemented("playlistTrack.Reorder")
+}
 
 type mongoPlayQueueRepository struct{ ctx context.Context }
 

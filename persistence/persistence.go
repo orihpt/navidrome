@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/navidrome/navidrome/log"
 	"github.com/navidrome/navidrome/model"
 	"github.com/navidrome/navidrome/model/id"
+	"github.com/navidrome/navidrome/model/request"
 	"github.com/navidrome/navidrome/utils"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -93,6 +95,25 @@ func (s *MongoStore) ensureCollections(ctx context.Context) error {
 		"artists": {
 			{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
 		},
+		"follows": {
+			{Keys: bson.D{{Key: "followerid", Value: 1}, {Key: "followedid", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "followedid", Value: 1}}},
+		},
+		"playlists": {
+			{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true).SetSparse(true)},
+			{Keys: bson.D{{Key: "ownerid", Value: 1}}},
+			{Keys: bson.D{{Key: "visibility", Value: 1}}},
+			{Keys: bson.D{{Key: "path", Value: 1}}, Options: options.Index().SetSparse(true)},
+		},
+		"playlist_tracks": {
+			{Keys: bson.D{{Key: "playlistid", Value: 1}, {Key: "id", Value: 1}}},
+			{Keys: bson.D{{Key: "mediafileid", Value: 1}}},
+		},
+		"scrobbles": {
+			{Keys: bson.D{{Key: "userid", Value: 1}, {Key: "submissiontime", Value: -1}}},
+			{Keys: bson.D{{Key: "mediafileid", Value: 1}}},
+			{Keys: bson.D{{Key: "submissiontime", Value: -1}}},
+		},
 	}
 	for collection, models := range indexes {
 		if len(models) == 0 {
@@ -168,7 +189,7 @@ func (s *MongoStore) ScrobbleBuffer(ctx context.Context) model.ScrobbleBufferRep
 	return &mongoScrobbleBufferRepository{ctx: ctx}
 }
 func (s *MongoStore) Scrobble(ctx context.Context) model.ScrobbleRepository {
-	return &mongoScrobbleRepository{ctx: ctx}
+	return &mongoScrobbleRepository{ctx: ctx, store: s}
 }
 func (s *MongoStore) Plugin(ctx context.Context) model.PluginRepository {
 	return &mongoPluginRepository{ctx: ctx, store: s}
@@ -339,12 +360,24 @@ func (r *mongoUserRepository) GetUserLibraries(string) (model.Libraries, error) 
 	return (&mongoLibraryRepository{ctx: r.ctx, store: r.store}).GetAll()
 }
 func (r *mongoUserRepository) SetUserLibraries(string, []int) error { return nil }
-func (r *mongoUserRepository) Search(query string, _ ...model.QueryOptions) (model.Users, error) {
+func (r *mongoUserRepository) Search(query string, queryOptions ...model.QueryOptions) (model.Users, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return r.GetAll()
 	}
-	cur, err := r.c().Find(r.ctx, bson.M{"$or": []bson.M{{"username": bson.M{"$regex": query, "$options": "i"}}, {"name": bson.M{"$regex": query, "$options": "i"}}}})
+	limit := int64(20)
+	if len(queryOptions) > 0 && queryOptions[0].Max > 0 {
+		limit = int64(queryOptions[0].Max)
+	}
+	pattern := regexp.QuoteMeta(query)
+	cur, err := r.c().Find(
+		r.ctx,
+		bson.M{"$or": []bson.M{
+			{"username": bson.M{"$regex": pattern, "$options": "i"}},
+			{"name": bson.M{"$regex": pattern, "$options": "i"}},
+		}},
+		options.Find().SetLimit(limit).SetSort(bson.D{{Key: "username", Value: 1}}),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -359,11 +392,77 @@ func (r *mongoUserRepository) Search(query string, _ ...model.QueryOptions) (mod
 	}
 	return out, cur.Err()
 }
-func (r *mongoUserRepository) Follow(string, string) error               { return nil }
-func (r *mongoUserRepository) Unfollow(string, string) error             { return nil }
-func (r *mongoUserRepository) GetFollowers(string) (model.Users, error)  { return nil, nil }
-func (r *mongoUserRepository) GetFollowing(string) (model.Users, error)  { return nil, nil }
-func (r *mongoUserRepository) IsFollowing(string, string) (bool, error)  { return false, nil }
+func (r *mongoUserRepository) follows() *mongo.Collection { return r.store.collection("follows") }
+func (r *mongoUserRepository) Follow(followerID, followedID string) error {
+	if strings.TrimSpace(followerID) == "" || strings.TrimSpace(followedID) == "" || followerID == followedID {
+		return model.ErrValidation
+	}
+	exists, err := mongoExists(r.ctx, r.c(), followedID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return model.ErrNotFound
+	}
+	follow := model.Follow{FollowerID: followerID, FollowedID: followedID, CreatedAt: time.Now()}
+	_, err = r.follows().InsertOne(r.ctx, follow)
+	if mongo.IsDuplicateKeyError(err) {
+		return nil
+	}
+	return err
+}
+func (r *mongoUserRepository) Unfollow(followerID, followedID string) error {
+	_, err := r.follows().DeleteOne(r.ctx, bson.M{"followerid": followerID, "followedid": followedID})
+	return err
+}
+func (r *mongoUserRepository) usersByIDs(ids []string) (model.Users, error) {
+	if len(ids) == 0 {
+		return model.Users{}, nil
+	}
+	return mongoAll[model.User, model.Users](r.ctx, r.c(), bson.M{"id": bson.M{"$in": ids}}, options.Find().SetSort(bson.D{{Key: "username", Value: 1}}))
+}
+func (r *mongoUserRepository) GetFollowers(userID string) (model.Users, error) {
+	cur, err := r.follows().Find(r.ctx, bson.M{"followedid": userID})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+	var ids []string
+	for cur.Next(r.ctx) {
+		var f model.Follow
+		if err := cur.Decode(&f); err != nil {
+			return nil, err
+		}
+		ids = append(ids, f.FollowerID)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return r.usersByIDs(ids)
+}
+func (r *mongoUserRepository) GetFollowing(userID string) (model.Users, error) {
+	cur, err := r.follows().Find(r.ctx, bson.M{"followerid": userID})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+	var ids []string
+	for cur.Next(r.ctx) {
+		var f model.Follow
+		if err := cur.Decode(&f); err != nil {
+			return nil, err
+		}
+		ids = append(ids, f.FollowedID)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return r.usersByIDs(ids)
+}
+func (r *mongoUserRepository) IsFollowing(followerID, followedID string) (bool, error) {
+	n, err := r.follows().CountDocuments(r.ctx, bson.M{"followerid": followerID, "followedid": followedID})
+	return n > 0, err
+}
 func (r *mongoUserRepository) Count(...rest.QueryOptions) (int64, error) { return r.CountAll() }
 func (r *mongoUserRepository) Read(uid string) (any, error)              { return r.Get(uid) }
 func (r *mongoUserRepository) ReadAll(...rest.QueryOptions) (any, error) { return r.GetAll() }
@@ -527,20 +626,129 @@ func (*mongoPlayerRepository) CountByClient(...model.QueryOptions) (map[string]i
 	return map[string]int64{}, nil
 }
 
-type mongoScrobbleRepository struct{ ctx context.Context }
+type mongoScrobbleRepository struct {
+	ctx   context.Context
+	store *MongoStore
+}
 
-func (*mongoScrobbleRepository) RecordScrobble(string, time.Time) error { return nil }
-func (*mongoScrobbleRepository) GetRecentlyPlayed(string, int) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoScrobbleRepository) c() *mongo.Collection { return r.store.collection("scrobbles") }
+func (r *mongoScrobbleRepository) RecordScrobble(mediaFileID string, submissionTime time.Time) error {
+	user, ok := request.UserFrom(r.ctx)
+	if !ok || user.ID == "" {
+		return model.ErrNotAuthorized
+	}
+	if mediaFileID == "" {
+		return model.ErrValidation
+	}
+	_, err := r.c().InsertOne(r.ctx, model.Scrobble{
+		MediaFileID:    mediaFileID,
+		UserID:         user.ID,
+		SubmissionTime: submissionTime,
+	})
+	return err
 }
-func (*mongoScrobbleRepository) GetCommunityRecentlyPlayed(int) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoScrobbleRepository) mediaFilesForScrobbles(filter bson.M, limit int) (model.MediaFiles, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	cur, err := r.c().Find(r.ctx, filter, options.Find().SetSort(bson.D{{Key: "submissiontime", Value: -1}}).SetLimit(int64(limit)))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+	var orderedIDs []string
+	for cur.Next(r.ctx) {
+		var sc model.Scrobble
+		if err := cur.Decode(&sc); err != nil {
+			return nil, err
+		}
+		orderedIDs = append(orderedIDs, sc.MediaFileID)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return r.mediaFilesByOrderedIDs(orderedIDs)
 }
-func (*mongoScrobbleRepository) GetCommunityMostPlayed(int) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoScrobbleRepository) mediaFilesByOrderedIDs(ids []string) (model.MediaFiles, error) {
+	if len(ids) == 0 {
+		return model.MediaFiles{}, nil
+	}
+	unique := make([]string, 0, len(ids))
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	mfs, err := (&mongoMediaFileRepository{ctx: r.ctx, store: r.store}).GetAll(model.QueryOptions{Filters: bsonFilter{"id": bson.M{"$in": unique}}})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]model.MediaFile, len(mfs))
+	for _, mf := range mfs {
+		byID[mf.ID] = mf
+	}
+	out := make(model.MediaFiles, 0, len(ids))
+	for _, id := range ids {
+		if mf, ok := byID[id]; ok {
+			out = append(out, mf)
+		}
+	}
+	return out, nil
 }
-func (*mongoScrobbleRepository) GetFollowingRecentlyPlayed(string, int) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoScrobbleRepository) GetRecentlyPlayed(userID string, limit int) (model.MediaFiles, error) {
+	return r.mediaFilesForScrobbles(bson.M{"userid": userID}, limit)
+}
+func (r *mongoScrobbleRepository) GetCommunityRecentlyPlayed(limit int) (model.MediaFiles, error) {
+	return r.mediaFilesForScrobbles(bson.M{}, limit)
+}
+func (r *mongoScrobbleRepository) GetCommunityMostPlayed(limit int) (model.MediaFiles, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	cur, err := r.c().Aggregate(r.ctx, mongo.Pipeline{
+		{{Key: "$group", Value: bson.M{
+			"_id":        "$mediafileid",
+			"plays":      bson.M{"$sum": 1},
+			"lastPlayed": bson.M{"$max": "$submissiontime"},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "plays", Value: -1}, {Key: "lastPlayed", Value: -1}}}},
+		{{Key: "$limit", Value: limit}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+	var ids []string
+	for cur.Next(r.ctx) {
+		var row struct {
+			ID string `bson:"_id"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			return nil, err
+		}
+		ids = append(ids, row.ID)
+	}
+	if err := cur.Err(); err != nil {
+		return nil, err
+	}
+	return r.mediaFilesByOrderedIDs(ids)
+}
+func (r *mongoScrobbleRepository) GetFollowingRecentlyPlayed(userID string, limit int) (model.MediaFiles, error) {
+	following, err := (&mongoUserRepository{ctx: r.ctx, store: r.store}).GetFollowing(userID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(following))
+	for _, user := range following {
+		ids = append(ids, user.ID)
+	}
+	if len(ids) == 0 {
+		return model.MediaFiles{}, nil
+	}
+	return r.mediaFilesForScrobbles(bson.M{"userid": bson.M{"$in": ids}}, limit)
 }
 
 type mongoScrobbleBufferRepository struct{ ctx context.Context }

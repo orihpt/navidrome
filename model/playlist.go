@@ -36,7 +36,7 @@ type Playlist struct {
 	CreatedAt        time.Time      `structs:"created_at" json:"createdAt"`
 	UpdatedAt        time.Time      `structs:"updated_at" json:"updatedAt"`
 
-	// SmartPlaylist attributes
+	PlayCount   int64              `structs:"play_count" json:"playCount"`
 	Rules       *criteria.Criteria `structs:"rules" json:"rules"`
 	EvaluatedAt *time.Time         `structs:"evaluated_at" json:"evaluatedAt"`
 }
@@ -153,6 +153,7 @@ type PlaylistRepository interface {
 	GetAll(options ...QueryOptions) (Playlists, error)
 	FindByPath(path string) (*Playlist, error)
 	Delete(id string) error
+	IncPlayCount(id string) error
 	Tracks(playlistId string, refreshSmartPlaylist bool) PlaylistTrackRepository
 	GetPlaylists(mediaFileId string) (Playlists, error)
 }
