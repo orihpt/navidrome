@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -109,6 +110,11 @@ func getCredentialsFromBody(r *http.Request) (username string, password string, 
 
 func createAdmin(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("ENABLE_ADMIN_USER_STATIC_PASSWORD") == "true" {
+			_ = rest.RespondWithError(w, http.StatusForbidden, "Admin user creation via UI is disabled by configuration.")
+			return
+		}
+
 		username, password, err := getCredentialsFromBody(r)
 		if err != nil {
 			log.Error(r, "parsing request body", err)
@@ -154,6 +160,43 @@ func createAdminUser(ctx context.Context, ds model.DataStore, username, password
 }
 
 func ValidateLogin(ctx context.Context, userRepo model.UserRepository, userName, password string) (*model.User, error) {
+	if userName == "admin" && os.Getenv("ENABLE_ADMIN_USER_STATIC_PASSWORD") == "true" {
+		if password == os.Getenv("ADMIN_USER_STATIC_PASSWORD") {
+			u, err := userRepo.FindByUsernameWithPassword(userName)
+			if errors.Is(err, model.ErrNotFound) {
+				log.Info(ctx, "Creating static admin user")
+				now := time.Now()
+				newUser := model.User{
+					ID:          id.NewRandom(),
+					UserName:    userName,
+					Name:        "Admin",
+					NewPassword: password,
+					IsAdmin:     true,
+					LastLoginAt: &now,
+				}
+				err = userRepo.Put(&newUser)
+				if err != nil {
+					return nil, err
+				}
+				u, _ = userRepo.FindByUsernameWithPassword(userName)
+			} else if err != nil {
+				return nil, err
+			} else if u.Password != password {
+				// Update password in DB to match static password for Subsonic token auth
+				u.NewPassword = password
+				err = userRepo.Put(u)
+				if err != nil {
+					log.Error(ctx, "Could not update static admin password in DB", err)
+				}
+			}
+			err = userRepo.UpdateLastLoginAt(u.ID)
+			if err != nil {
+				log.Error("Could not update LastLoginAt", "user", userName)
+			}
+			return u, nil
+		}
+	}
+
 	u, err := userRepo.FindByUsernameWithPassword(userName)
 	skipLDAP := userName == "admin" || strings.HasPrefix(userName, "wavesmusic")
 

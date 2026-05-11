@@ -325,7 +325,7 @@ const AlbumDetails = (props) => {
             )}
             {isDesktop && notes && (
               <Collapse
-                collapsedHeight={'2.75em'}
+                collapsedSize={'2.75em'}
                 in={expanded}
                 timeout={'auto'}
                 className={classes.notes}
@@ -351,7 +351,7 @@ const AlbumDetails = (props) => {
       )}
       {!isDesktop && notes && (
         <div className={classes.notes}>
-          <Collapse collapsedHeight={'1.5em'} in={expanded} timeout={'auto'}>
+          <Collapse collapsedSize={'1.5em'} in={expanded} timeout={'auto'}>
             <Typography
               variant={'body1'}
               onClick={() => setExpanded(!expanded)}

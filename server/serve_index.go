@@ -32,7 +32,7 @@ func IndexWithShare(ds model.DataStore, fs fs.FS, shareInfo *model.Share) http.H
 func serveIndex(ds model.DataStore, fs fs.FS, shareInfo *model.Share) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := ds.User(r.Context()).CountAll()
-		firstTime := c == 0 && err == nil
+		firstTime := c == 0 && err == nil && os.Getenv("ENABLE_ADMIN_USER_STATIC_PASSWORD") != "true"
 
 		t, err := getIndexTemplate(r, fs)
 		if err != nil {

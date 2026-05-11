@@ -1,9 +1,9 @@
 import React from 'react'
 import {
-  GridList,
-  GridListTile,
+  ImageList,
+  ImageListItem,
   Typography,
-  GridListTileBar,
+  ImageListItemBar,
   useMediaQuery,
 } from '@material-ui/core'
 import { makeStyles } from '@material-ui/core/styles'
@@ -124,7 +124,7 @@ const Cover = withContentRect('bounds')(({
   measureRef,
   contentRect,
 }) => {
-  // Force height to be the same as the width determined by the GridList
+  // Force height to be the same as the width determined by the ImageList
   // noinspection JSSuspiciousNameCombination
   const classes = useCoverStyles({ height: contentRect.bounds.width })
   const [, dragAlbumRef] = useDrag(
@@ -171,7 +171,7 @@ const AlbumGridTile = ({ showArtist, record, basePath, ...props }) => {
         to={linkToRecord(basePath, record.id, 'show')}
       >
         <Cover record={record} />
-        <GridListTileBar
+        <ImageListItemBar
           className={isDesktop ? classes.tileBar : classes.tileBarMobile}
           subtitle={
             !record.missing && (
@@ -215,22 +215,22 @@ const LoadedAlbumGrid = ({ ids, data, basePath, width }) => {
   const isArtistView = !!(filterValues && filterValues.artist_id)
   return (
     <div className={classes.root}>
-      <GridList
+      <ImageList
         component={'div'}
-        cellHeight={'auto'}
+        rowHeight={'auto'}
         cols={getColsForWidth(width)}
-        spacing={20}
+        gap={20}
       >
         {ids.map((id) => (
-          <GridListTile className={classes.gridListTile} key={id}>
+          <ImageListItem className={classes.gridListTile} key={id}>
             <AlbumGridTile
               record={data[id]}
               basePath={basePath}
               showArtist={!isArtistView}
             />
-          </GridListTile>
+          </ImageListItem>
         ))}
-      </GridList>
+      </ImageList>
     </div>
   )
 }

@@ -40,6 +40,7 @@ export const LoveButton = ({
   const record = useRecordContext({ record: recordProp }) || {}
   const classes = useStyles({ color, visible, loved: record.starred })
   const [toggleLove, loading] = useToggleLove(resource, record)
+  const iconFontSize = size === 'default' ? 'medium' : size
 
   const handleToggleLove = useCallback(
     (e) => {
@@ -67,9 +68,9 @@ export const LoveButton = ({
       {...rest}
     >
       {record.starred ? (
-        <FavoriteIcon fontSize={size} />
+        <FavoriteIcon fontSize={iconFontSize} />
       ) : (
-        <FavoriteBorderIcon fontSize={size} />
+        <FavoriteBorderIcon fontSize={iconFontSize} />
       )}
     </Button>
   )

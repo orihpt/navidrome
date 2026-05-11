@@ -432,8 +432,8 @@ export default {
         },
       },
     },
-    MuiGridListTile: {
-      tile: {
+    MuiImageListItem: {
+      item: {
         '&:hover': {
           boxShadow: '0 2px 32px rgba(0,0,0,0.5), 0px 1px 5px rgba(0,0,0,0.1)',
         },

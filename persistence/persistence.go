@@ -182,6 +182,12 @@ func (s *MongoStore) Resource(ctx context.Context, m any) model.ResourceReposito
 		return s.User(ctx).(model.ResourceRepository)
 	case model.Playlist:
 		return s.Playlist(ctx).(model.ResourceRepository)
+	case model.MediaFile:
+		return s.MediaFile(ctx).(model.ResourceRepository)
+	case model.Album:
+		return s.Album(ctx).(model.ResourceRepository)
+	case model.Artist:
+		return s.Artist(ctx).(model.ResourceRepository)
 	case model.Radio:
 		return s.Radio(ctx).(model.ResourceRepository)
 	case model.Plugin:

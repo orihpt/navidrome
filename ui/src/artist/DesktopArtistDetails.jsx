@@ -154,7 +154,7 @@ const DesktopArtistDetails = ({ artistInfo, record, biography }) => {
               </div>
             )}
             <Collapse
-              collapsedHeight={'4.5em'}
+              collapsedSize={'4.5em'}
               in={expanded}
               timeout={'auto'}
               className={classes.biography}

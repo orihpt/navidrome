@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -140,20 +141,35 @@ func authenticate(ds model.DataStore) func(next http.Handler) http.Handler {
 						log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
 					}
 				} else {
-					usr, err = ds.User(ctx).FindByUsernameWithPassword(username)
-					if errors.Is(err, context.Canceled) {
-						log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-						return
+					if username == "admin" && os.Getenv("ENABLE_ADMIN_USER_STATIC_PASSWORD") == "true" {
+						staticPassword := os.Getenv("ADMIN_USER_STATIC_PASSWORD")
+						if token != "" && salt != "" {
+							expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(staticPassword+salt)))
+							if expectedToken == token {
+								usr, err = server.ValidateLogin(ctx, ds.User(ctx), username, staticPassword)
+								if errors.Is(err, context.Canceled) {
+									log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+									return
+								}
+							}
+						}
 					}
-					switch {
-					case errors.Is(err, model.ErrNotFound):
-						log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-					case err != nil:
-						log.Error(ctx, "API: Error authenticating username", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
-					default:
-						err = validateCredentials(usr, "", token, salt, jwt)
-						if err != nil {
+					if usr == nil && err == nil {
+						usr, err = ds.User(ctx).FindByUsernameWithPassword(username)
+						if errors.Is(err, context.Canceled) {
+							log.Debug(ctx, "API: Request canceled when authenticating", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+							return
+						}
+						switch {
+						case errors.Is(err, model.ErrNotFound):
 							log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+						case err != nil:
+							log.Error(ctx, "API: Error authenticating username", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+						default:
+							err = validateCredentials(usr, "", token, salt, jwt)
+							if err != nil {
+								log.Warn(ctx, "API: Invalid login", "auth", "subsonic", "username", username, "remoteAddr", r.RemoteAddr, err)
+							}
 						}
 					}
 				}

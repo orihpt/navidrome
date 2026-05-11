@@ -413,7 +413,7 @@ export default {
         },
       },
     },
-    MuiGridList: {
+    MuiImageList: {
       root: {
         '&:empty': {
           display: 'none',
@@ -422,13 +422,13 @@ export default {
         borderRadius: '4px',
       },
     },
-    MuiGridListTile: {
+    MuiImageListItem: {
       root: {
         '@media (max-width: 599.95px)': {
           padding: '7px!important',
         },
       },
-      tile: {
+      item: {
         '& img': {
           borderRadius: '5px',
         },
@@ -436,7 +436,7 @@ export default {
     },
     NDAlbumGridView: {
       root: {
-        '&:has(.MuiGridList-root:empty)': {
+        '&:has(.MuiImageList-root:empty)': {
           display: 'none',
         },
       },
@@ -467,7 +467,7 @@ export default {
         borderBottom: '1px solid black',
       },
     },
-    MuiGridListTileBar: {
+    MuiImageListItemBar: {
       root: {
         height: '30px!important',
         background: 'white!important',
@@ -478,7 +478,7 @@ export default {
       titleWrap: {
         marginLeft: '0px',
       },
-      titlePositionBottom: {
+      positionBottom: {
         bottom: '0',
       },
       subtitle: {

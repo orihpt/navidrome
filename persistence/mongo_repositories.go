@@ -9,6 +9,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/deluan/rest"
 	"github.com/navidrome/navidrome/model"
+	"github.com/navidrome/navidrome/model/id"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -44,7 +45,7 @@ func mongoAll[T any, S ~[]T](ctx context.Context, c *mongo.Collection, filter bs
 		return nil, err
 	}
 	defer cur.Close(ctx)
-	var out S
+	out := S{}
 	for cur.Next(ctx) {
 		var item T
 		if err := cur.Decode(&item); err != nil {
@@ -83,6 +84,46 @@ func mongoQuery(opts ...model.QueryOptions) (bson.M, *options.FindOptionsBuilder
 		findOpts.SetSort(bson.D{{Key: mongoField(opt.Sort), Value: dir}})
 	}
 	return filter, findOpts, nil
+}
+
+func restToModelOptions(options ...rest.QueryOptions) []model.QueryOptions {
+	if len(options) == 0 {
+		return nil
+	}
+	opt := options[0]
+	out := model.QueryOptions{
+		Sort:   opt.Sort,
+		Order:  opt.Order,
+		Max:    opt.Max,
+		Offset: opt.Offset,
+	}
+	if len(opt.Filters) > 0 {
+		filters := make(map[string]any, len(opt.Filters))
+		for k, v := range opt.Filters {
+			switch k {
+			case "seed":
+				if seed, ok := v.(string); ok {
+					out.Seed = seed
+				}
+				continue
+			case "role":
+				continue
+			}
+			filters[k] = v
+		}
+		if len(filters) > 0 {
+			out.Filters = squirrel.Eq(filters)
+		}
+	}
+	return []model.QueryOptions{out}
+}
+
+func restRole(options ...rest.QueryOptions) string {
+	if len(options) == 0 || len(options[0].Filters) == 0 {
+		return ""
+	}
+	role, _ := options[0].Filters["role"].(string)
+	return role
 }
 
 func mongoFilter(expr squirrel.Sqlizer) (bson.M, error) {
@@ -234,6 +275,9 @@ func (r *mongoAlbumRepository) c() *mongo.Collection { return r.store.collection
 func (r *mongoAlbumRepository) CountAll(opts ...model.QueryOptions) (int64, error) {
 	return mongoCount(r.ctx, r.c(), opts...)
 }
+func (r *mongoAlbumRepository) Count(options ...rest.QueryOptions) (int64, error) {
+	return r.CountAll(restToModelOptions(options...)...)
+}
 func (r *mongoAlbumRepository) Exists(id string) (bool, error) { return mongoExists(r.ctx, r.c(), id) }
 func (r *mongoAlbumRepository) Put(a *model.Album) error       { return mongoReplace(r.ctx, r.c(), a.ID, a) }
 func (r *mongoAlbumRepository) UpdateExternalInfo(a *model.Album) error {
@@ -242,6 +286,7 @@ func (r *mongoAlbumRepository) UpdateExternalInfo(a *model.Album) error {
 func (r *mongoAlbumRepository) Get(id string) (*model.Album, error) {
 	return mongoOne[model.Album](r.ctx, r.c(), bson.M{"id": id})
 }
+func (r *mongoAlbumRepository) Read(id string) (any, error) { return r.Get(id) }
 func (r *mongoAlbumRepository) GetAll(opts ...model.QueryOptions) (model.Albums, error) {
 	filter, findOpts, err := mongoQuery(opts...)
 	if err != nil {
@@ -249,6 +294,11 @@ func (r *mongoAlbumRepository) GetAll(opts ...model.QueryOptions) (model.Albums,
 	}
 	return mongoAll[model.Album, model.Albums](r.ctx, r.c(), filter, findOpts)
 }
+func (r *mongoAlbumRepository) ReadAll(options ...rest.QueryOptions) (any, error) {
+	return r.GetAll(restToModelOptions(options...)...)
+}
+func (*mongoAlbumRepository) EntityName() string { return "album" }
+func (*mongoAlbumRepository) NewInstance() any   { return &model.Album{} }
 func (r *mongoAlbumRepository) Touch(ids ...string) error {
 	if len(ids) == 0 {
 		return nil
@@ -301,6 +351,21 @@ func (r *mongoArtistRepository) c() *mongo.Collection { return r.store.collectio
 func (r *mongoArtistRepository) CountAll(opts ...model.QueryOptions) (int64, error) {
 	return mongoCount(r.ctx, r.c(), opts...)
 }
+func (r *mongoArtistRepository) Count(options ...rest.QueryOptions) (int64, error) {
+	role := restRole(options...)
+	if role == "" {
+		return r.CountAll(restToModelOptions(options...)...)
+	}
+	filter, _, err := mongoQuery(restToModelOptions(options...)...)
+	if err != nil {
+		return 0, err
+	}
+	filter, err = r.addRoleFilter(filter, role)
+	if err != nil {
+		return 0, err
+	}
+	return r.c().CountDocuments(r.ctx, filter)
+}
 func (r *mongoArtistRepository) Exists(id string) (bool, error) { return mongoExists(r.ctx, r.c(), id) }
 func (r *mongoArtistRepository) Put(a *model.Artist, _ ...string) error {
 	return mongoReplace(r.ctx, r.c(), a.ID, a)
@@ -311,12 +376,78 @@ func (r *mongoArtistRepository) UpdateExternalInfo(a *model.Artist) error {
 func (r *mongoArtistRepository) Get(id string) (*model.Artist, error) {
 	return mongoOne[model.Artist](r.ctx, r.c(), bson.M{"id": id})
 }
+func (r *mongoArtistRepository) Read(id string) (any, error) { return r.Get(id) }
 func (r *mongoArtistRepository) GetAll(opts ...model.QueryOptions) (model.Artists, error) {
 	filter, findOpts, err := mongoQuery(opts...)
 	if err != nil {
 		return nil, err
 	}
 	return mongoAll[model.Artist, model.Artists](r.ctx, r.c(), filter, findOpts)
+}
+func (r *mongoArtistRepository) ReadAll(options ...rest.QueryOptions) (any, error) {
+	role := restRole(options...)
+	if role == "" {
+		return r.GetAll(restToModelOptions(options...)...)
+	}
+	filter, findOpts, err := mongoQuery(restToModelOptions(options...)...)
+	if err != nil {
+		return nil, err
+	}
+	filter, err = r.addRoleFilter(filter, role)
+	if err != nil {
+		return nil, err
+	}
+	return mongoAll[model.Artist, model.Artists](r.ctx, r.c(), filter, findOpts)
+}
+func (*mongoArtistRepository) EntityName() string { return "artist" }
+func (*mongoArtistRepository) NewInstance() any   { return &model.Artist{} }
+func (r *mongoArtistRepository) addRoleFilter(filter bson.M, role string) (bson.M, error) {
+	ids, err := r.artistIDsForRole(role)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return bson.M{"id": bson.M{"$in": []string{}}}, nil
+	}
+	if len(filter) == 0 {
+		return bson.M{"id": bson.M{"$in": ids}}, nil
+	}
+	return bson.M{"$and": []bson.M{filter, {"id": bson.M{"$in": ids}}}}, nil
+}
+func (r *mongoArtistRepository) artistIDsForRole(role string) ([]string, error) {
+	field := "participants." + role + ".artist.id"
+	if role == model.RoleMainCredit.String() {
+		return r.artistIDsForRoles(model.RoleAlbumArtist.String(), model.RoleArtist.String())
+	}
+	return r.distinctArtistIDs(field)
+}
+func (r *mongoArtistRepository) artistIDsForRoles(roles ...string) ([]string, error) {
+	seen := map[string]struct{}{}
+	for _, role := range roles {
+		ids, err := r.artistIDsForRole(role)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			seen[id] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+func (r *mongoArtistRepository) distinctArtistIDs(field string) ([]string, error) {
+	res := r.store.collection("media_files").Distinct(r.ctx, field, bson.M{"missing": false})
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	var ids []string
+	if err := res.Decode(&ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 func (*mongoArtistRepository) GetIndex(bool, []int, ...model.Role) (model.ArtistIndexes, error) {
 	return nil, nil
@@ -340,6 +471,9 @@ func (r *mongoMediaFileRepository) c() *mongo.Collection { return r.store.collec
 func (r *mongoMediaFileRepository) CountAll(opts ...model.QueryOptions) (int64, error) {
 	return mongoCount(r.ctx, r.c(), opts...)
 }
+func (r *mongoMediaFileRepository) Count(options ...rest.QueryOptions) (int64, error) {
+	return r.CountAll(restToModelOptions(options...)...)
+}
 func (*mongoMediaFileRepository) CountBySuffix(...model.QueryOptions) (map[string]int64, error) {
 	return map[string]int64{}, nil
 }
@@ -347,6 +481,15 @@ func (r *mongoMediaFileRepository) Exists(id string) (bool, error) {
 	return mongoExists(r.ctx, r.c(), id)
 }
 func (r *mongoMediaFileRepository) Put(m *model.MediaFile) error {
+	// Assign ID from PID if not already set. PID is the persistent identifier
+	// derived from tags; ID is the stable DB key used for upserts.
+	if m.ID == "" {
+		if m.PID != "" {
+			m.ID = m.PID
+		} else {
+			m.ID = id.NewRandom()
+		}
+	}
 	return mongoReplace(r.ctx, r.c(), m.ID, m)
 }
 func (r *mongoMediaFileRepository) UpdateProbeData(id, data string) error {
@@ -356,6 +499,7 @@ func (r *mongoMediaFileRepository) UpdateProbeData(id, data string) error {
 func (r *mongoMediaFileRepository) Get(id string) (*model.MediaFile, error) {
 	return mongoOne[model.MediaFile](r.ctx, r.c(), bson.M{"id": id})
 }
+func (r *mongoMediaFileRepository) Read(id string) (any, error) { return r.Get(id) }
 func (r *mongoMediaFileRepository) GetWithParticipants(id string) (*model.MediaFile, error) {
 	return r.Get(id)
 }
@@ -366,6 +510,11 @@ func (r *mongoMediaFileRepository) GetAll(opts ...model.QueryOptions) (model.Med
 	}
 	return mongoAll[model.MediaFile, model.MediaFiles](r.ctx, r.c(), filter, findOpts)
 }
+func (r *mongoMediaFileRepository) ReadAll(options ...rest.QueryOptions) (any, error) {
+	return r.GetAll(restToModelOptions(options...)...)
+}
+func (*mongoMediaFileRepository) EntityName() string { return "song" }
+func (*mongoMediaFileRepository) NewInstance() any   { return &model.MediaFile{} }
 func (*mongoMediaFileRepository) GetAllByTags(model.TagName, []string, ...model.QueryOptions) (model.MediaFiles, error) {
 	return nil, nil
 }
