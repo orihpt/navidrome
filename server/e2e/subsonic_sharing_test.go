@@ -1,3 +1,5 @@
+//go:build legacy_sqlite_e2e
+
 package e2e
 
 import (
