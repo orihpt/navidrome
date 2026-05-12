@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -83,6 +84,48 @@ func mongoQuery(opts ...model.QueryOptions) (bson.M, *options.FindOptionsBuilder
 		findOpts.SetSort(bson.D{{Key: mongoField(opt.Sort), Value: dir}})
 	}
 	return filter, findOpts, nil
+}
+
+func mongoSearch[T any, S ~[]T](ctx context.Context, c *mongo.Collection, q string, fields []string, opts ...model.QueryOptions) (S, error) {
+	filter, findOpts, err := mongoQuery(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	q = strings.TrimSpace(q)
+	if q == "" || q == `""` {
+		return mongoAll[T, S](ctx, c, filter, findOpts)
+	}
+
+	terms := strings.Fields(q)
+	if len(terms) == 0 {
+		terms = []string{q}
+	}
+
+	termFilters := make([]bson.M, 0, len(terms))
+	for _, term := range terms {
+		regex := bson.M{"$regex": regexp.QuoteMeta(term), "$options": "i"}
+		fieldFilters := make([]bson.M, 0, len(fields))
+		for _, field := range fields {
+			fieldFilters = append(fieldFilters, bson.M{field: regex})
+		}
+		termFilters = append(termFilters, bson.M{"$or": fieldFilters})
+	}
+
+	searchFilter := bson.M{}
+	if len(termFilters) == 1 {
+		searchFilter = termFilters[0]
+	} else {
+		searchFilter = bson.M{"$and": termFilters}
+	}
+
+	if len(filter) == 0 {
+		filter = searchFilter
+	} else {
+		filter = bson.M{"$and": []bson.M{filter, searchFilter}}
+	}
+
+	return mongoAll[T, S](ctx, c, filter, findOpts)
 }
 
 func mongoFilter(expr squirrel.Sqlizer) (bson.M, error) {
@@ -288,8 +331,16 @@ func (*mongoAlbumRepository) IncPlayCount(string, time.Time) error           { r
 func (*mongoAlbumRepository) SetStar(bool, ...string) error                  { return nil }
 func (*mongoAlbumRepository) SetRating(int, string) error                    { return nil }
 func (*mongoAlbumRepository) ReassignAnnotation(string, string) error        { return nil }
-func (*mongoAlbumRepository) Search(string, ...model.QueryOptions) (model.Albums, error) {
-	return nil, nil
+func (r *mongoAlbumRepository) Search(q string, opts ...model.QueryOptions) (model.Albums, error) {
+	return mongoSearch[model.Album, model.Albums](r.ctx, r.c(), q, []string{
+		"id",
+		"name",
+		"orderalbumname",
+		"albumartist",
+		"orderalbumartistname",
+		"mbzalbumid",
+		"mbzreleasegroupid",
+	}, opts...)
 }
 
 type mongoArtistRepository struct {
@@ -327,8 +378,14 @@ func (*mongoArtistRepository) IncPlayCount(string, time.Time) error    { return 
 func (*mongoArtistRepository) SetStar(bool, ...string) error           { return nil }
 func (*mongoArtistRepository) SetRating(int, string) error             { return nil }
 func (*mongoArtistRepository) ReassignAnnotation(string, string) error { return nil }
-func (*mongoArtistRepository) Search(string, ...model.QueryOptions) (model.Artists, error) {
-	return nil, nil
+func (r *mongoArtistRepository) Search(q string, opts ...model.QueryOptions) (model.Artists, error) {
+	return mongoSearch[model.Artist, model.Artists](r.ctx, r.c(), q, []string{
+		"id",
+		"name",
+		"orderartistname",
+		"sortartistname",
+		"mbzartistid",
+	}, opts...)
 }
 
 type mongoMediaFileRepository struct {
@@ -472,8 +529,20 @@ func (*mongoMediaFileRepository) ReassignAnnotation(string, string) error { retu
 func (*mongoMediaFileRepository) AddBookmark(string, string, int64) error { return nil }
 func (*mongoMediaFileRepository) DeleteBookmark(string) error             { return nil }
 func (*mongoMediaFileRepository) GetBookmarks() (model.Bookmarks, error)  { return nil, nil }
-func (*mongoMediaFileRepository) Search(string, ...model.QueryOptions) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoMediaFileRepository) Search(q string, opts ...model.QueryOptions) (model.MediaFiles, error) {
+	return mongoSearch[model.MediaFile, model.MediaFiles](r.ctx, r.c(), q, []string{
+		"id",
+		"title",
+		"ordertitle",
+		"album",
+		"orderalbumname",
+		"artist",
+		"orderartistname",
+		"albumartist",
+		"orderalbumartistname",
+		"mbzrecordingid",
+		"mbzreleasetrackid",
+	}, opts...)
 }
 
 type mongoPlaylistRepository struct {
