@@ -245,7 +245,7 @@ func (api *Router) addConfigRoute(r chi.Router) {
 
 func (api *Router) addKeepAliveRoute(r chi.Router) {
 	r.Get("/keepalive/*", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"response":"ok", "id":"keepalive"}`))
+		_, _ = w.Write([]byte(`{"status":"ok", "id":"keepalive"}`))
 	})
 }
 
@@ -279,7 +279,7 @@ func (api *Router) getRecentlyAdded(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tracks)
+	_ = json.NewEncoder(w).Encode(tracks)
 }
 
 // Middleware to ensure only admin users can access endpoints

@@ -959,13 +959,3 @@ func (r *mongoArtistRequestRepository) Move(requestID, status string) error {
 	})
 	return err
 }
-
-func emptyAlbumCursor() model.AlbumCursor {
-	return model.AlbumCursor(func(yield func(model.Album, error) bool) {})
-}
-func emptyFolderCursor() model.FolderCursor {
-	return model.FolderCursor(func(yield func(model.Folder, error) bool) {})
-}
-func emptyMediaCursor() model.MediaFileCursor {
-	return model.MediaFileCursor(func(yield func(model.MediaFile, error) bool) {})
-}

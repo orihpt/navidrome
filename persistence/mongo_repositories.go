@@ -159,11 +159,9 @@ func mongoSearch[T any, S ~[]T](ctx context.Context, c *mongo.Collection, q stri
 		termFilters = append(termFilters, bson.M{"$or": fieldFilters})
 	}
 
-	searchFilter := bson.M{}
+	searchFilter := bson.M{"$and": termFilters}
 	if len(termFilters) == 1 {
 		searchFilter = termFilters[0]
-	} else {
-		searchFilter = bson.M{"$and": termFilters}
 	}
 
 	if len(filter) == 0 {
@@ -818,7 +816,6 @@ func (r *mongoMediaFileRepository) Search(q string, opts ...model.QueryOptions) 
 }
 
 type mongoPlaylistRepository struct {
-	mongoResourceRepository
 	ctx   context.Context
 	store *MongoStore
 }

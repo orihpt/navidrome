@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -122,7 +123,7 @@ func (s *kvstoreServiceImpl) setValue(ctx context.Context, key string, value []b
 	}
 	var existing kvRecord
 	err := s.collection.FindOne(ctx, s.liveFilter(bson.M{"key": key})).Decode(&existing)
-	if err != nil && err != mongo.ErrNoDocuments {
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		return err
 	}
 	if err := s.checkStorageLimit(ctx, int64(len(value))-existing.Size); err != nil {
@@ -153,7 +154,7 @@ func (s *kvstoreServiceImpl) SetWithTTL(ctx context.Context, key string, value [
 func (s *kvstoreServiceImpl) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	var rec kvRecord
 	err := s.collection.FindOne(ctx, s.liveFilter(bson.M{"key": key})).Decode(&rec)
-	if err == mongo.ErrNoDocuments {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, false, nil
 	}
 	if err != nil {

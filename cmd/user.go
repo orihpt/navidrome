@@ -29,7 +29,6 @@ var (
 	setAdmin       bool
 	setPassword    bool
 	setRegularUser bool
-	passwordArg    string
 )
 
 func init() {

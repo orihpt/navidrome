@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -226,7 +227,7 @@ func (s *taskQueueServiceImpl) Enqueue(ctx context.Context, queueName string, pa
 func (s *taskQueueServiceImpl) Get(ctx context.Context, taskID string) (*host.TaskInfo, error) {
 	var rec taskRecord
 	err := s.tasksCol.FindOne(ctx, bson.M{"plugin": s.pluginName, "id": taskID}).Decode(&rec)
-	if err == mongo.ErrNoDocuments {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, fmt.Errorf("task %q not found", taskID)
 	}
 	if err != nil {
@@ -292,7 +293,7 @@ func (s *taskQueueServiceImpl) processTask(queueName string, qs *queueState) boo
 		bson.M{"$set": bson.M{"status": taskStatusRunning, "updatedAt": now}, "$inc": bson.M{"attempt": 1}},
 		options.FindOneAndUpdate().SetSort(bson.D{{Key: "nextRunAt", Value: 1}, {Key: "createdAt", Value: 1}}).SetReturnDocument(options.After),
 	).Decode(&rec)
-	if err == mongo.ErrNoDocuments {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return false
 	}
 	if err != nil {

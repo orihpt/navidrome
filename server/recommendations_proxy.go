@@ -43,12 +43,17 @@ func NewRecommendationsProxy(rawURL string) http.Handler {
 		if strings.HasSuffix(r.URL.Path, "/status") {
 			client := &http.Client{Timeout: 2 * time.Second}
 			resp, err := client.Head(rawURL)
-			if err != nil || (resp != nil && resp.StatusCode >= 500) {
+			if err != nil {
+				http.Error(w, "Recommendation service unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode >= 500 {
 				http.Error(w, "Recommendation service unavailable", http.StatusServiceUnavailable)
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"status":"ok"}`))
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
 			return
 		}
 		proxy.ServeHTTP(w, r)

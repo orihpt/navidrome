@@ -2,8 +2,10 @@
 
 package plugins
 
-import "encoding/json"
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Artwork service permissions for generating artwork URLs
 type ArtworkPermission struct {
