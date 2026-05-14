@@ -50,6 +50,7 @@ func login(ds model.DataStore) func(w http.ResponseWriter, r *http.Request) {
 func doLogin(ds model.DataStore, username string, password string, w http.ResponseWriter, r *http.Request) {
 	user, err := ValidateLogin(r.Context(), ds.User(r.Context()), username, password)
 	if err != nil {
+		log.Error(r, "Validation error", err)
 		_ = rest.RespondWithError(w, http.StatusInternalServerError, "Unknown error authentication user. Please try again")
 		return
 	}
