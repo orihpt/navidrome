@@ -156,9 +156,9 @@ func (api *Router) GetArtistRequestSuggestions(r *http.Request) (*responses.Subs
 	q := strings.TrimSpace(p.StringOr("query", ""))
 	normalizedQuery := normalizeArtistRequestName(q)
 	seen := map[string]bool{}
-	suggestions := make([]string, 0, 16)
+	suggestions := make([]responses.ArtistRequestSuggestion, 0, 16)
 
-	add := func(name string) {
+	add := func(name string, artistID string, hasAvatar bool) {
 		name = strings.TrimSpace(name)
 		normalized := normalizeArtistRequestName(name)
 		if name == "" || normalized == "" || seen[normalized] {
@@ -168,21 +168,29 @@ func (api *Router) GetArtistRequestSuggestions(r *http.Request) (*responses.Subs
 			return
 		}
 		seen[normalized] = true
-		suggestions = append(suggestions, name)
+		suggestions = append(suggestions, responses.ArtistRequestSuggestion{
+			ID:        artistID,
+			Name:      name,
+			HasAvatar: hasAvatar,
+		})
 	}
 
 	if requests, err := api.ds.ArtistRequest(r.Context()).GetAll(user.ID); err == nil {
 		for _, item := range requests {
-			add(item.Name)
+			add(item.Name, "", false)
 		}
 	}
 	if artists, err := api.ds.Artist(r.Context()).GetAll(model.QueryOptions{Sort: "name", Max: 1000}); err == nil {
 		for _, artist := range artists {
-			add(artist.Name)
+			hasAvatar := false
+			if _, dir, err := api.localArtistDir(r, artist.ID); err == nil {
+				hasAvatar = regularFileExists(dir + string(os.PathSeparator) + artistAvatar)
+			}
+			add(artist.Name, artist.ID, hasAvatar)
 		}
 	}
 	for _, name := range readArtistRequestSuggestionFile() {
-		add(name)
+		add(name, "", false)
 	}
 
 	if len(suggestions) > 12 {
@@ -190,7 +198,11 @@ func (api *Router) GetArtistRequestSuggestions(r *http.Request) (*responses.Subs
 	}
 
 	response := newResponse()
-	response.ArtistRequestSuggestions = &responses.ArtistRequestSuggestions{Name: suggestions}
+	names := make([]string, len(suggestions))
+	for i, suggestion := range suggestions {
+		names[i] = suggestion.Name
+	}
+	response.ArtistRequestSuggestions = &responses.ArtistRequestSuggestions{Name: names, Artist: suggestions}
 	return response, nil
 }
 

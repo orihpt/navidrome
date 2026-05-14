@@ -71,3 +71,22 @@ func TestSortPlaylistTracksUsesNumericOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestMongoMediaFileTopPlayedByArtistReturnsEmptyForNonPositiveLimit(t *testing.T) {
+	repo := &mongoMediaFileRepository{ctx: context.Background()}
+	tracks, err := repo.GetTopPlayedByArtist("artist-1", 0)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(tracks) != 0 {
+		t.Fatalf("expected no tracks, got %d", len(tracks))
+	}
+}
+
+func TestMongoArtistRequestRejectsInvalidStatusBeforeStorage(t *testing.T) {
+	repo := &mongoArtistRequestRepository{ctx: context.Background()}
+	err := repo.Move("request-1", "done")
+	if err == nil {
+		t.Fatal("expected invalid status error")
+	}
+}

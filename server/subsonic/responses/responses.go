@@ -109,7 +109,15 @@ type ArtistRequests struct {
 }
 
 type ArtistRequestSuggestions struct {
-	Name []string `xml:"name" json:"name,omitempty"`
+	Name   []string                  `xml:"name" json:"name,omitempty"`
+	Artist []ArtistRequestSuggestion `xml:"artist" json:"artist,omitempty"`
+}
+
+type ArtistRequestSuggestion struct {
+	ID        string `xml:"id,attr,omitempty"        json:"id,omitempty"`
+	Name      string `xml:"name,attr"                json:"name"`
+	HasAvatar bool   `xml:"hasAvatar,attr,omitempty" json:"hasAvatar,omitempty"`
+	AvatarURL string `xml:"avatarUrl,attr,omitempty" json:"avatarUrl,omitempty"`
 }
 
 type Artist struct {

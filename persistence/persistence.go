@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -207,7 +208,7 @@ func (s *MongoStore) Plugin(ctx context.Context) model.PluginRepository {
 	return &mongoPluginRepository{ctx: ctx, store: s}
 }
 func (s *MongoStore) ArtistRequest(ctx context.Context) model.ArtistRequestRepository {
-	return &mongoArtistRequestRepository{ctx: ctx}
+	return &mongoArtistRequestRepository{ctx: ctx, store: s}
 }
 func (s *MongoStore) Resource(ctx context.Context, m any) model.ResourceRepository {
 	switch m.(type) {
@@ -797,16 +798,167 @@ func (*mongoScrobbleBufferRepository) Next(string, string) (*model.ScrobbleEntry
 func (*mongoScrobbleBufferRepository) Dequeue(*model.ScrobbleEntry) error { return nil }
 func (*mongoScrobbleBufferRepository) Length() (int64, error)             { return 0, nil }
 
-type mongoArtistRequestRepository struct{ ctx context.Context }
-
-func (*mongoArtistRequestRepository) GetAll(string) (model.ArtistRequests, error) { return nil, nil }
-func (*mongoArtistRequestRepository) Create(string, string, string) (*model.ArtistRequest, error) {
-	return nil, notImplemented("artistRequest.Create")
+type mongoArtistRequestRepository struct {
+	ctx   context.Context
+	store *MongoStore
 }
-func (*mongoArtistRequestRepository) ToggleVote(string, string) error         { return nil }
-func (*mongoArtistRequestRepository) Delete(string) error                     { return nil }
-func (*mongoArtistRequestRepository) UpdateName(string, string, string) error { return nil }
-func (*mongoArtistRequestRepository) Move(string, string) error               { return nil }
+
+func (r *mongoArtistRequestRepository) requests() *mongo.Collection {
+	return r.store.collection("artist_requests")
+}
+
+func (r *mongoArtistRequestRepository) votes() *mongo.Collection {
+	return r.store.collection("artist_request_votes")
+}
+
+func (r *mongoArtistRequestRepository) GetAll(userID string) (model.ArtistRequests, error) {
+	cur, err := r.requests().Find(r.ctx, bson.M{}, options.Find().SetSort(bson.D{
+		{Key: "status", Value: -1},
+		{Key: "votecount", Value: -1},
+		{Key: "name", Value: 1},
+	}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(r.ctx)
+
+	voted := map[string]bool{}
+	if userID != "" {
+		voteCur, err := r.votes().Find(r.ctx, bson.M{"userid": userID})
+		if err != nil {
+			return nil, err
+		}
+		defer voteCur.Close(r.ctx)
+		for voteCur.Next(r.ctx) {
+			var vote struct {
+				RequestID string `bson:"requestid"`
+			}
+			if err := voteCur.Decode(&vote); err != nil {
+				return nil, err
+			}
+			voted[vote.RequestID] = true
+		}
+		if err := voteCur.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	items := model.ArtistRequests{}
+	for cur.Next(r.ctx) {
+		var item model.ArtistRequest
+		if err := cur.Decode(&item); err != nil {
+			return nil, err
+		}
+		item.UserVoted = voted[item.ID]
+		items = append(items, item)
+	}
+	return items, cur.Err()
+}
+
+func (r *mongoArtistRequestRepository) Create(name, normalizedName, userID string) (*model.ArtistRequest, error) {
+	if count, err := r.requests().CountDocuments(r.ctx, bson.M{"normalizedname": normalizedName}); err != nil {
+		return nil, err
+	} else if count > 0 {
+		return nil, fmt.Errorf("unique constraint: artist request normalized name")
+	}
+	item := &model.ArtistRequest{
+		ID:             id.NewRandom(),
+		Name:           name,
+		NormalizedName: normalizedName,
+		Status:         model.ArtistRequestStatusWishlist,
+		VoteCount:      1,
+		UserVoted:      true,
+		CreatedBy:      userID,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	_, err := r.requests().InsertOne(r.ctx, item)
+	if err != nil {
+		return nil, err
+	}
+	if userID != "" {
+		_, err = r.votes().InsertOne(r.ctx, bson.M{
+			"id":        id.NewRandom(),
+			"requestid": item.ID,
+			"userid":    userID,
+			"createdat": time.Now(),
+		})
+		if err != nil {
+			_ = r.Delete(item.ID)
+			return nil, err
+		}
+	}
+	return item, nil
+}
+
+func (r *mongoArtistRequestRepository) ToggleVote(requestID, userID string) error {
+	if requestID == "" || userID == "" {
+		return model.ErrNotAuthorized
+	}
+	filter := bson.M{"requestid": requestID, "userid": userID}
+	err := r.votes().FindOne(r.ctx, filter).Err()
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		_, err = r.votes().InsertOne(r.ctx, bson.M{
+			"id":        id.NewRandom(),
+			"requestid": requestID,
+			"userid":    userID,
+			"createdat": time.Now(),
+		})
+		if err != nil {
+			return err
+		}
+		_, err = r.requests().UpdateOne(r.ctx, bson.M{"id": requestID}, bson.M{
+			"$inc": bson.M{"votecount": 1},
+			"$set": bson.M{"updatedat": time.Now()},
+		})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	if _, err = r.votes().DeleteOne(r.ctx, filter); err != nil {
+		return err
+	}
+	_, err = r.requests().UpdateOne(r.ctx, bson.M{"id": requestID}, bson.M{
+		"$inc": bson.M{"votecount": -1},
+		"$set": bson.M{"updatedat": time.Now()},
+	})
+	return err
+}
+
+func (r *mongoArtistRequestRepository) Delete(requestID string) error {
+	if _, err := r.votes().DeleteMany(r.ctx, bson.M{"requestid": requestID}); err != nil {
+		return err
+	}
+	_, err := r.requests().DeleteOne(r.ctx, bson.M{"id": requestID})
+	return err
+}
+
+func (r *mongoArtistRequestRepository) UpdateName(requestID, name, normalizedName string) error {
+	_, err := r.requests().UpdateOne(r.ctx, bson.M{"id": requestID}, bson.M{
+		"$set": bson.M{
+			"name":           name,
+			"normalizedname": normalizedName,
+			"updatedat":      time.Now(),
+		},
+	})
+	return err
+}
+
+func (r *mongoArtistRequestRepository) Move(requestID, status string) error {
+	switch status {
+	case model.ArtistRequestStatusWishlist, model.ArtistRequestStatusAvailableSoon:
+	default:
+		return fmt.Errorf("invalid artist request status: %s", status)
+	}
+	_, err := r.requests().UpdateOne(r.ctx, bson.M{"id": requestID}, bson.M{
+		"$set": bson.M{
+			"status":    status,
+			"updatedat": time.Now(),
+		},
+	})
+	return err
+}
 
 func emptyAlbumCursor() model.AlbumCursor {
 	return model.AlbumCursor(func(yield func(model.Album, error) bool) {})

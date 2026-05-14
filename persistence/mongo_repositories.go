@@ -682,8 +682,24 @@ func (*mongoMediaFileRepository) NewInstance() any   { return &model.MediaFile{}
 func (*mongoMediaFileRepository) GetAllByTags(model.TagName, []string, ...model.QueryOptions) (model.MediaFiles, error) {
 	return nil, nil
 }
-func (*mongoMediaFileRepository) GetTopPlayedByArtist(string, int) (model.MediaFiles, error) {
-	return nil, nil
+func (r *mongoMediaFileRepository) GetTopPlayedByArtist(artistID string, count int) (model.MediaFiles, error) {
+	if count <= 0 {
+		return model.MediaFiles{}, nil
+	}
+	filter := bson.M{
+		"$or": []bson.M{
+			{"artistid": artistID},
+			{"albumartistid": artistID},
+			{"participants.artist.id": artistID},
+		},
+	}
+	opts := options.Find().
+		SetSort(bson.D{
+			{Key: "playcount", Value: -1},
+			{Key: "title", Value: 1},
+		}).
+		SetLimit(int64(count))
+	return mongoAll[model.MediaFile, model.MediaFiles](r.ctx, r.c(), filter, opts)
 }
 func (r *mongoMediaFileRepository) GetCursor(opts ...model.QueryOptions) (model.MediaFileCursor, error) {
 	filter, findOpts, err := mongoQuery(opts...)

@@ -1,0 +1,127 @@
+?   	github.com/navidrome/navidrome	[no test files]
+ok  	github.com/navidrome/navidrome/adapters/deezer	1.215s
+ok  	github.com/navidrome/navidrome/adapters/gotaglib	1.339s
+ok  	github.com/navidrome/navidrome/adapters/lastfm	1.338s
+ok  	github.com/navidrome/navidrome/adapters/listenbrainz	2.469s
+ok  	github.com/navidrome/navidrome/cmd	1.937s
+ok  	github.com/navidrome/navidrome/conf	0.563s
+?   	github.com/navidrome/navidrome/conf/buildtags	[no test files]
+?   	github.com/navidrome/navidrome/conf/configtest	[no test files]
+?   	github.com/navidrome/navidrome/conf/mime	[no test files]
+?   	github.com/navidrome/navidrome/consts	[no test files]
+ok  	github.com/navidrome/navidrome/core	1.720s
+ok  	github.com/navidrome/navidrome/core/agents	4.064s
+ok  	github.com/navidrome/navidrome/core/artwork	2.859s
+ok  	github.com/navidrome/navidrome/core/auth	2.804s
+ok  	github.com/navidrome/navidrome/core/external	3.694s
+ok  	github.com/navidrome/navidrome/core/ffmpeg	3.253s
+ok  	github.com/navidrome/navidrome/core/lyrics	4.470s
+ok  	github.com/navidrome/navidrome/core/matcher	4.908s
+?   	github.com/navidrome/navidrome/core/metrics	[no test files]
+?   	github.com/navidrome/navidrome/core/metrics/insights	[no test files]
+ok  	github.com/navidrome/navidrome/core/playback	5.285s
+Loading test configuration file from /Users/orihpt2/Documents/spoti/navidrome/tests/navidrome-test.toml
+time="2026-05-14T19:40:26+03:00" level=info msg="Loaded configuration" file=/Users/orihpt2/Documents/spoti/navidrome/tests/navidrome-test.toml
+Running Suite: MPV Suite - /Users/orihpt2/Documents/spoti/navidrome
+===================================================================
+Random Seed: [1m1778776826[0m
+
+Will run [1m16[0m of [1m16[0m specs
+[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m
+[38;5;243m------------------------------[0m
+[38;5;9m• [FAILED] [5.002 seconds][0m
+[0mMPV [38;5;243mstart [38;5;9m[1m[It] executes MPV command and captures arguments correctly[0m
+[38;5;243m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:202[0m
+
+  [38;5;9m[FAILED] Unexpected error:
+      <*errors.errorString | 0x110b9f9fc010>: 
+      /var/folders/ht/p982kwgj4lvgj4trrvrb1r7c0000gt/T/mpv_test_2884451263/mock_mpv.sh exited with non-zero status code: -1
+      {
+          s: "/var/folders/ht/p982kwgj4lvgj4trrvrb1r7c0000gt/T/mpv_test_2884451263/mock_mpv.sh exited with non-zero status code: -1",
+      }
+  occurred[0m
+  [38;5;9mIn [1m[It][0m[38;5;9m at: [1m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:217[0m [38;5;243m@ 05/14/26 19:40:31.961[0m
+[38;5;243m------------------------------[0m
+[38;5;9m• [FAILED] [5.002 seconds][0m
+[0mMPV [38;5;243mstart [38;5;9m[1m[It] handles file paths with spaces[0m
+[38;5;243m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:230[0m
+
+  [38;5;9m[FAILED] Unexpected error:
+      <*errors.errorString | 0x110b9f8f5270>: 
+      /var/folders/ht/p982kwgj4lvgj4trrvrb1r7c0000gt/T/mpv_test_2064062176/mock_mpv.sh exited with non-zero status code: -1
+      {
+          s: "/var/folders/ht/p982kwgj4lvgj4trrvrb1r7c0000gt/T/mpv_test_2064062176/mock_mpv.sh exited with non-zero status code: -1",
+      }
+  occurred[0m
+  [38;5;9mIn [1m[It][0m[38;5;9m at: [1m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:245[0m [38;5;243m@ 05/14/26 19:40:36.963[0m
+[38;5;243m------------------------------[0m
+[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m[38;5;10m•[0m
+
+[38;5;9m[1mSummarizing 2 Failures:[0m
+  [38;5;9m[FAIL][0m [0mMPV [38;5;243mstart [38;5;9m[1m[It] executes MPV command and captures arguments correctly[0m
+  [38;5;243m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:217[0m
+  [38;5;9m[FAIL][0m [0mMPV [38;5;243mstart [38;5;9m[1m[It] handles file paths with spaces[0m
+  [38;5;243m/Users/orihpt2/Documents/spoti/navidrome/core/playback/mpv/mpv_test.go:245[0m
+
+[38;5;9m[1mRan 16 of 16 Specs in 14.822 seconds[0m
+[38;5;9m[1mFAIL![0m -- [38;5;10m[1m14 Passed[0m | [38;5;9m[1m2 Failed[0m | [38;5;11m[1m0 Pending[0m | [38;5;14m[1m0 Skipped[0m
+--- FAIL: TestMPV (14.83s)
+FAIL
+FAIL	github.com/navidrome/navidrome/core/playback/mpv	20.361s
+ok  	github.com/navidrome/navidrome/core/playlists	6.032s
+ok  	github.com/navidrome/navidrome/core/publicurl	6.292s
+ok  	github.com/navidrome/navidrome/core/scrobbler	6.883s
+ok  	github.com/navidrome/navidrome/core/storage	6.907s
+ok  	github.com/navidrome/navidrome/core/storage/local	7.235s
+ok  	github.com/navidrome/navidrome/core/storage/storagetest	6.353s
+ok  	github.com/navidrome/navidrome/core/stream	6.530s
+?   	github.com/navidrome/navidrome/db	[no test files]
+ok  	github.com/navidrome/navidrome/log	5.951s
+ok  	github.com/navidrome/navidrome/model	6.195s [no tests to run]
+ok  	github.com/navidrome/navidrome/model/criteria	6.114s [no tests to run]
+?   	github.com/navidrome/navidrome/model/id	[no test files]
+ok  	github.com/navidrome/navidrome/model/metadata	6.103s
+?   	github.com/navidrome/navidrome/model/request	[no test files]
+ok  	github.com/navidrome/navidrome/persistence	5.997s
+ok  	github.com/navidrome/navidrome/plugins	23.737s
+?   	github.com/navidrome/navidrome/plugins/capabilities	[no test files]
+?   	github.com/navidrome/navidrome/plugins/host	[no test files]
+?   	github.com/navidrome/navidrome/resources	[no test files]
+ok  	github.com/navidrome/navidrome/scanner	6.046s [no tests to run]
+ok  	github.com/navidrome/navidrome/scanner/metadata_old	6.066s
+ok  	github.com/navidrome/navidrome/scanner/metadata_old/ffmpeg	5.419s
+ok  	github.com/navidrome/navidrome/scheduler	6.164s
+?   	github.com/navidrome/navidrome/scratch	[no test files]
+ok  	github.com/navidrome/navidrome/server	5.629s
+?   	github.com/navidrome/navidrome/server/backgrounds	[no test files]
+?   	github.com/navidrome/navidrome/server/e2e	[no test files]
+ok  	github.com/navidrome/navidrome/server/events	5.776s
+ok  	github.com/navidrome/navidrome/server/nativeapi	5.866s
+ok  	github.com/navidrome/navidrome/server/public	6.043s
+ok  	github.com/navidrome/navidrome/server/subsonic	6.251s
+?   	github.com/navidrome/navidrome/server/subsonic/filter	[no test files]
+ok  	github.com/navidrome/navidrome/server/subsonic/responses	6.287s
+?   	github.com/navidrome/navidrome/tests	[no test files]
+?   	github.com/navidrome/navidrome/ui	[no test files]
+?   	github.com/navidrome/navidrome/ui/node_modules/flatted/golang/pkg/flatted	[no test files]
+ok  	github.com/navidrome/navidrome/utils	6.301s
+ok  	github.com/navidrome/navidrome/utils/cache	7.141s
+ok  	github.com/navidrome/navidrome/utils/chrono	6.644s
+ok  	github.com/navidrome/navidrome/utils/gg	6.405s
+ok  	github.com/navidrome/navidrome/utils/gravatar	5.802s
+ok  	github.com/navidrome/navidrome/utils/hasher	5.730s
+ok  	github.com/navidrome/navidrome/utils/ioutils	5.794s
+ok  	github.com/navidrome/navidrome/utils/jsoncommentstrip	5.054s
+ok  	github.com/navidrome/navidrome/utils/merge	5.236s
+ok  	github.com/navidrome/navidrome/utils/nanoid	5.439s
+ok  	github.com/navidrome/navidrome/utils/natural	5.212s
+ok  	github.com/navidrome/navidrome/utils/number	5.069s
+ok  	github.com/navidrome/navidrome/utils/pl	5.503s
+ok  	github.com/navidrome/navidrome/utils/random	4.989s
+ok  	github.com/navidrome/navidrome/utils/req	4.920s
+ok  	github.com/navidrome/navidrome/utils/run	4.507s
+ok  	github.com/navidrome/navidrome/utils/shellquote	4.766s
+ok  	github.com/navidrome/navidrome/utils/singleton	5.248s
+ok  	github.com/navidrome/navidrome/utils/slice	5.136s
+ok  	github.com/navidrome/navidrome/utils/str	5.149s
+FAIL
