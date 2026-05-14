@@ -2,8 +2,11 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,8 +28,11 @@ func mongoCount(ctx context.Context, c *mongo.Collection, opts ...model.QueryOpt
 }
 
 func mongoExists(ctx context.Context, c *mongo.Collection, id string) (bool, error) {
-	n, err := c.CountDocuments(ctx, bson.M{"id": id})
-	return n > 0, err
+	err := c.FindOne(ctx, bson.M{"id": id}, options.FindOne().SetProjection(bson.M{"_id": 1})).Err()
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func mongoReplace(ctx context.Context, c *mongo.Collection, id string, doc any) error {
@@ -822,10 +828,11 @@ func (r *mongoPlaylistRepository) Put(pls *model.Playlist) error {
 	if err := mongoReplace(r.ctx, r.c(), pls.ID, &doc); err != nil {
 		return err
 	}
-	if len(pls.Tracks) == 0 {
-		return nil
-	}
 	tracks := r.store.collection("playlist_tracks")
+	if len(pls.Tracks) == 0 {
+		_, err := tracks.DeleteMany(r.ctx, bson.M{"playlistid": pls.ID})
+		return err
+	}
 	if _, err := tracks.DeleteMany(r.ctx, bson.M{"playlistid": pls.ID}); err != nil {
 		return err
 	}
@@ -836,6 +843,7 @@ func (r *mongoPlaylistRepository) Put(pls *model.Playlist) error {
 		}
 		docs = append(docs, bson.M{
 			"id":          fmt.Sprintf("%d", i+1),
+			"position":    i + 1,
 			"playlistid":  pls.ID,
 			"mediafileid": track.MediaFileID,
 		})
@@ -949,7 +957,7 @@ func (r *mongoPlaylistTrackRepository) GetAll(opts ...model.QueryOptions) (model
 		}
 		filter = bson.M{"$and": []bson.M{filter, extra}}
 	}
-	findOpts := options.Find().SetSort(bson.D{{Key: "id", Value: 1}})
+	findOpts := options.Find().SetSort(bson.D{{Key: "position", Value: 1}, {Key: "id", Value: 1}})
 	cur, err := r.c().Find(r.ctx, filter, findOpts)
 	if err != nil {
 		return nil, err
@@ -968,6 +976,7 @@ func (r *mongoPlaylistTrackRepository) GetAll(opts ...model.QueryOptions) (model
 	if err := cur.Err(); err != nil {
 		return nil, err
 	}
+	sortPlaylistTracks(tracks)
 	if len(mediaIDs) == 0 {
 		return tracks, nil
 	}
@@ -985,6 +994,17 @@ func (r *mongoPlaylistTrackRepository) GetAll(opts ...model.QueryOptions) (model
 		}
 	}
 	return tracks, nil
+}
+
+func sortPlaylistTracks(tracks model.PlaylistTracks) {
+	sort.SliceStable(tracks, func(i, j int) bool {
+		left, leftErr := strconv.Atoi(tracks[i].ID)
+		right, rightErr := strconv.Atoi(tracks[j].ID)
+		if leftErr == nil && rightErr == nil {
+			return left < right
+		}
+		return tracks[i].ID < tracks[j].ID
+	})
 }
 func (r *mongoPlaylistTrackRepository) GetAlbumIDs(opts ...model.QueryOptions) ([]string, error) {
 	tracks, err := r.GetAll(opts...)
@@ -1018,6 +1038,7 @@ func (r *mongoPlaylistTrackRepository) Add(mediaFileIDs []string) (int, error) {
 		pos := count + int64(i) + 1
 		docs = append(docs, bson.M{
 			"id":          fmt.Sprintf("%d", pos),
+			"position":    pos,
 			"playlistid":  r.playlistID,
 			"mediafileid": mediaFileID,
 		})
@@ -1064,16 +1085,111 @@ func (*mongoPlaylistTrackRepository) Reorder(int, int) error {
 	return notImplemented("playlistTrack.Reorder")
 }
 
-type mongoPlayQueueRepository struct{ ctx context.Context }
+type mongoPlayQueueRepository struct {
+	ctx   context.Context
+	store *MongoStore
+}
 
-func (*mongoPlayQueueRepository) Store(*model.PlayQueue, ...string) error { return nil }
-func (*mongoPlayQueueRepository) Retrieve(string) (*model.PlayQueue, error) {
-	return nil, model.ErrNotFound
+type mongoPlayQueueDocument struct {
+	ID        string    `bson:"id"`
+	UserID    string    `bson:"userid"`
+	Current   int       `bson:"current"`
+	Position  int64     `bson:"position"`
+	ChangedBy string    `bson:"changedby"`
+	ItemIDs   []string  `bson:"itemids"`
+	CreatedAt time.Time `bson:"createdat"`
+	UpdatedAt time.Time `bson:"updatedat"`
 }
-func (*mongoPlayQueueRepository) RetrieveWithMediaFiles(string) (*model.PlayQueue, error) {
-	return nil, model.ErrNotFound
+
+func (r *mongoPlayQueueRepository) c() *mongo.Collection { return r.store.collection("play_queues") }
+
+func (r *mongoPlayQueueRepository) Store(queue *model.PlayQueue, _ ...string) error {
+	if queue == nil || strings.TrimSpace(queue.UserID) == "" {
+		return model.ErrValidation
+	}
+	now := time.Now()
+	if queue.CreatedAt.IsZero() {
+		queue.CreatedAt = now
+	}
+	queue.UpdatedAt = now
+	itemIDs := make([]string, 0, len(queue.Items))
+	for _, item := range queue.Items {
+		if item.ID != "" {
+			itemIDs = append(itemIDs, item.ID)
+		}
+	}
+	doc := mongoPlayQueueDocument{
+		ID:        queue.UserID,
+		UserID:    queue.UserID,
+		Current:   queue.Current,
+		Position:  queue.Position,
+		ChangedBy: queue.ChangedBy,
+		ItemIDs:   itemIDs,
+		CreatedAt: queue.CreatedAt,
+		UpdatedAt: queue.UpdatedAt,
+	}
+	_, err := r.c().ReplaceOne(r.ctx, bson.M{"userid": queue.UserID}, doc, options.Replace().SetUpsert(true))
+	return err
 }
-func (*mongoPlayQueueRepository) Clear(string) error { return nil }
+
+func (r *mongoPlayQueueRepository) Retrieve(userID string) (*model.PlayQueue, error) {
+	var doc mongoPlayQueueDocument
+	err := r.c().FindOne(r.ctx, bson.M{"userid": userID}).Decode(&doc)
+	if err != nil {
+		return nil, mongoErr(err)
+	}
+	items := make(model.MediaFiles, 0, len(doc.ItemIDs))
+	for _, id := range doc.ItemIDs {
+		items = append(items, model.MediaFile{ID: id})
+	}
+	return &model.PlayQueue{
+		ID:        doc.ID,
+		UserID:    doc.UserID,
+		Current:   doc.Current,
+		Position:  doc.Position,
+		ChangedBy: doc.ChangedBy,
+		Items:     items,
+		CreatedAt: doc.CreatedAt,
+		UpdatedAt: doc.UpdatedAt,
+	}, nil
+}
+
+func (r *mongoPlayQueueRepository) RetrieveWithMediaFiles(userID string) (*model.PlayQueue, error) {
+	queue, err := r.Retrieve(userID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(queue.Items))
+	for _, item := range queue.Items {
+		if item.ID != "" {
+			ids = append(ids, item.ID)
+		}
+	}
+	mfs, err := (&mongoMediaFileRepository{ctx: r.ctx, store: r.store}).GetAll(model.QueryOptions{Filters: bsonFilter{"id": bson.M{"$in": ids}}})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]model.MediaFile, len(mfs))
+	for _, mf := range mfs {
+		byID[mf.ID] = mf
+	}
+	items := make(model.MediaFiles, 0, len(ids))
+	for _, id := range ids {
+		if mf, ok := byID[id]; ok {
+			items = append(items, mf)
+		}
+	}
+	queue.Items = items
+	if queue.Current >= len(queue.Items) {
+		queue.Current = max(len(queue.Items)-1, 0)
+	}
+	return queue, nil
+}
+
+func (r *mongoPlayQueueRepository) Clear(userID string) error {
+	_, err := r.c().DeleteOne(r.ctx, bson.M{"userid": userID})
+	return err
+}
 
 type mongoRadioRepository struct {
 	mongoResourceRepository

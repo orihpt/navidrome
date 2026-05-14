@@ -107,7 +107,19 @@ func (s *MongoStore) ensureCollections(ctx context.Context) error {
 		},
 		"playlist_tracks": {
 			{Keys: bson.D{{Key: "playlistid", Value: 1}, {Key: "id", Value: 1}}},
+			{Keys: bson.D{{Key: "playlistid", Value: 1}, {Key: "position", Value: 1}}},
 			{Keys: bson.D{{Key: "mediafileid", Value: 1}}},
+		},
+		"play_queues": {
+			{Keys: bson.D{{Key: "userid", Value: 1}}, Options: options.Index().SetUnique(true)},
+		},
+		"players": {
+			{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "userid", Value: 1}, {Key: "client", Value: 1}, {Key: "useragent", Value: 1}}},
+		},
+		"transcodings": {
+			{Keys: bson.D{{Key: "id", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "targetformat", Value: 1}}},
 		},
 		"scrobbles": {
 			{Keys: bson.D{{Key: "userid", Value: 1}, {Key: "submissiontime", Value: -1}}},
@@ -162,7 +174,7 @@ func (s *MongoStore) Playlist(ctx context.Context) model.PlaylistRepository {
 	return &mongoPlaylistRepository{ctx: ctx, store: s}
 }
 func (s *MongoStore) PlayQueue(ctx context.Context) model.PlayQueueRepository {
-	return &mongoPlayQueueRepository{ctx: ctx}
+	return &mongoPlayQueueRepository{ctx: ctx, store: s}
 }
 func (s *MongoStore) Transcoding(ctx context.Context) model.TranscodingRepository {
 	return &mongoTranscodingRepository{ctx: ctx}
@@ -233,6 +245,21 @@ func mongoErr(err error) error {
 		return model.ErrNotFound
 	}
 	return err
+}
+
+func mongoUserDocument(u *model.User) (bson.M, error) {
+	raw, err := bson.Marshal(u)
+	if err != nil {
+		return nil, err
+	}
+	var doc bson.M
+	if err := bson.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	if usernameLC := strings.ToLower(strings.TrimSpace(u.UserName)); usernameLC != "" {
+		doc["username_lc"] = usernameLC
+	}
+	return doc, nil
 }
 
 func keyTo32Bytes(input string) []byte {
@@ -321,7 +348,11 @@ func (r *mongoUserRepository) Put(u *model.User) error {
 		u.Password = enc
 		u.NewPassword = ""
 	}
-	_, err := r.c().ReplaceOne(r.ctx, bson.M{"id": u.ID}, u, options.Replace().SetUpsert(true))
+	doc, err := mongoUserDocument(u)
+	if err != nil {
+		return err
+	}
+	_, err = r.c().ReplaceOne(r.ctx, bson.M{"id": u.ID}, doc, options.Replace().SetUpsert(true))
 	return err
 }
 func (r *mongoUserRepository) UpdateLastLoginAt(uid string) error {
@@ -341,7 +372,12 @@ func (r *mongoUserRepository) FindFirstAdmin() (*model.User, error) {
 }
 func (r *mongoUserRepository) FindByUsername(username string) (*model.User, error) {
 	var u model.User
-	err := r.c().FindOne(r.ctx, bson.M{"username": bson.M{"$regex": "^" + username + "$", "$options": "i"}}).Decode(&u)
+	usernameLC := strings.ToLower(strings.TrimSpace(username))
+	err := r.c().FindOne(r.ctx, bson.M{"username_lc": usernameLC}).Decode(&u)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		pattern := "^" + regexp.QuoteMeta(strings.TrimSpace(username)) + "$"
+		err = r.c().FindOne(r.ctx, bson.M{"username": bson.M{"$regex": pattern, "$options": "i"}}).Decode(&u)
+	}
 	return &u, mongoErr(err)
 }
 func (r *mongoUserRepository) FindByUsernameWithPassword(username string) (*model.User, error) {
